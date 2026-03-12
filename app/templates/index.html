@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AI-powered retinal disease detection from fundus images using deep learning." />
+    <title>Retinal Disease Detection — AI Diagnostic Tool</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">👁️</span>
+                <h1>RetinAI</h1>
+            </div>
+            <p class="tagline">Multi-Label Retinal Disease Detection</p>
+        </header>
+
+        <!-- Upload Section -->
+        <main class="main-card">
+            <section class="upload-section" id="upload-section">
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-icon">📷</div>
+                    <h2>Upload Retinal Fundus Image</h2>
+                    <p>Drag &amp; drop an image or click to browse</p>
+                    <input type="file" id="file-input" accept="image/*" hidden />
+                    <button class="btn-primary" id="browse-btn">Choose Image</button>
+                </div>
+
+                <!-- Preview -->
+                <div class="preview-container hidden" id="preview-container">
+                    <img id="preview-img" alt="Retinal fundus image preview" />
+                    <div class="preview-info">
+                        <span id="file-name"></span>
+                        <button class="btn-secondary" id="change-btn">Change</button>
+                    </div>
+                </div>
+
+                <button class="btn-analyze hidden" id="analyze-btn">
+                    <span class="btn-text">Analyze Image</span>
+                    <span class="btn-spinner hidden" id="spinner"></span>
+                </button>
+            </section>
+
+            <!-- Results -->
+            <section class="results-section hidden" id="results-section">
+                <h2>Diagnosis Results</h2>
+                <div class="results-grid" id="results-grid"></div>
+            </section>
+
+            <!-- Error -->
+            <div class="error-banner hidden" id="error-banner">
+                <span id="error-msg"></span>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Created By Group_15</p>
+        </footer>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const uploadArea = document.getElementById('upload-area');
+        const previewCont = document.getElementById('preview-container');
+        const previewImg = document.getElementById('preview-img');
+        const fileName = document.getElementById('file-name');
+        const changeBtn = document.getElementById('change-btn');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const spinner = document.getElementById('spinner');
+        const resultsSec = document.getElementById('results-section');
+        const resultsGrid = document.getElementById('results-grid');
+        const errorBanner = document.getElementById('error-banner');
+        const errorMsg = document.getElementById('error-msg');
+
+        let selectedFile = null;
+
+        browseBtn.addEventListener('click', () => fileInput.click());
+        changeBtn.addEventListener('click', () => { resetUI(); fileInput.click(); });
+
+        // Drag-and-drop
+        uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+        uploadArea.addEventListener('drop', e => {
+            e.preventDefault(); uploadArea.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+        function handleFile(file) {
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = e => { previewImg.src = e.target.result; };
+            reader.readAsDataURL(file);
+            fileName.textContent = file.name;
+            uploadArea.classList.add('hidden');
+            previewCont.classList.remove('hidden');
+            analyzeBtn.classList.remove('hidden');
+            resultsSec.classList.add('hidden');
+            errorBanner.classList.add('hidden');
+        }
+
+        function resetUI() {
+            selectedFile = null;
+            fileInput.value = '';
+            previewCont.classList.add('hidden');
+            analyzeBtn.classList.add('hidden');
+            uploadArea.classList.remove('hidden');
+            resultsSec.classList.add('hidden');
+            errorBanner.classList.add('hidden');
+        }
+
+        analyzeBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            analyzeBtn.disabled = true;
+            spinner.classList.remove('hidden');
+            analyzeBtn.querySelector('.btn-text').textContent = 'Analyzing…';
+            errorBanner.classList.add('hidden');
+            resultsSec.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const res = await fetch('/predict', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error(`Server error ${res.status}`);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                renderResults(data);
+            } catch (err) {
+                errorMsg.textContent = err.message;
+                errorBanner.classList.remove('hidden');
+            } finally {
+                analyzeBtn.disabled = false;
+                spinner.classList.add('hidden');
+                analyzeBtn.querySelector('.btn-text').textContent = 'Analyze Image';
+            }
+        });
+
+        function renderResults(data) {
+            resultsGrid.innerHTML = '';
+            const diseases = data.probabilities;
+            const detected = new Set(data.detected_diseases);
+
+            for (const [name, prob] of Object.entries(diseases)) {
+                const pct = (prob * 100).toFixed(1);
+                const isDetected = detected.has(name);
+                const card = document.createElement('div');
+                card.className = 'result-card' + (isDetected ? ' detected' : '');
+                card.innerHTML = `
+                    <div class="result-header">
+                        <span class="result-status">${isDetected ? '⚠️' : '✅'}</span>
+                        <h3>${name}</h3>
+                    </div>
+                    <div class="result-bar-track">
+                        <div class="result-bar" style="width: ${pct}%"></div>
+                    </div>
+                    <span class="result-pct">${pct}%</span>
+                `;
+                resultsGrid.appendChild(card);
+            }
+            resultsSec.classList.remove('hidden');
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,12 @@
+{
+  "prediction_threshold": 0.3,
+  "precision_macro": 0.4197,
+  "recall_macro": 0.4638,
+  "f1_macro": 0.4019,
+  "precision_micro": 0.3706,
+  "recall_micro": 0.3289,
+  "f1_micro": 0.3485,
+  "roc_auc_macro": 0.784,
+  "roc_auc_micro": 0.7948,
+  "hamming_loss": 0.1805
+}
