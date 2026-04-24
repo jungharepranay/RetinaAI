@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="RetinAI — Sign in to access your clinical screening dashboard." />
+    <title>RetinAI — {% if mode == 'register' %}Create Account{% else %}Sign In{% endif %}</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+
+<body class="auth-body">
+    <canvas id="particle-canvas"></canvas>
+
+    <div class="auth-container">
+        <!-- Logo -->
+        <div class="auth-logo">
+            <div class="auth-logo-svg-wrap">
+                <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="eyeGradAuth" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#00e5b0" />
+                            <stop offset="50%" stop-color="#00c2ff" />
+                            <stop offset="100%" stop-color="#7c6aff" />
+                        </linearGradient>
+                        <radialGradient id="irisGradAuth" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#00e5b0" />
+                            <stop offset="60%" stop-color="#00849a" />
+                            <stop offset="100%" stop-color="#0c1220" />
+                        </radialGradient>
+                    </defs>
+                    <path d="M8,40 Q40,8 72,40 Q40,72 8,40 Z" fill="none" stroke="url(#eyeGradAuth)"
+                        stroke-width="2.5" />
+                    <circle cx="40" cy="40" r="16" fill="url(#irisGradAuth)" opacity="0.9" />
+                    <circle cx="40" cy="40" r="7" fill="#060a13" />
+                    <circle cx="35" cy="35" r="3" fill="rgba(255,255,255,0.6)" />
+                </svg>
+            </div>
+            <h1 class="auth-title">RetinAI</h1>
+            <p class="auth-subtitle">Clinical Screening Assistant</p>
+        </div>
+
+        <!-- Auth Card -->
+        <div class="auth-card" id="auth-card">
+            <!-- Login / Register toggle tabs -->
+            <div class="auth-tabs">
+                <a href="/login" class="auth-tab {% if mode == 'login' %}active{% endif %}" id="tab-login">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </a>
+                <a href="/register" class="auth-tab {% if mode == 'register' %}active{% endif %}" id="tab-register">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </a>
+            </div>
+
+            {% if error %}
+            <div class="auth-error">
+                <i class="fas fa-exclamation-circle"></i> {{ error }}
+            </div>
+            {% endif %}
+
+            {% if mode == 'login' %}
+            <!-- ===== LOGIN FORM ===== -->
+            <form method="post" action="/login" class="auth-form" id="login-form">
+                <div class="auth-field">
+                    <label for="login-email"><i class="fas fa-envelope"></i> Email</label>
+                    <input type="email" id="login-email" name="email" placeholder="your@email.com" required
+                        autocomplete="email" />
+                </div>
+                <div class="auth-field">
+                    <label for="login-password"><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="login-password" name="password" placeholder="••••••••" required
+                        autocomplete="current-password" />
+                </div>
+                <button type="submit" class="auth-submit">
+                    <i class="fas fa-sign-in-alt"></i> Sign In
+                </button>
+            </form>
+            <p class="auth-footer-text">
+                Don't have an account? <a href="/register">Create one</a>
+            </p>
+
+            {% else %}
+            <!-- ===== REGISTER FORM ===== -->
+            <form method="post" action="/register" class="auth-form" id="register-form">
+                <div class="auth-field">
+                    <label for="reg-name"><i class="fas fa-user"></i> Full Name</label>
+                    <input type="text" id="reg-name" name="name" placeholder="Dr. Jane Smith" required />
+                </div>
+                <div class="auth-field">
+                    <label for="reg-email"><i class="fas fa-envelope"></i> Email</label>
+                    <input type="email" id="reg-email" name="email" placeholder="your@email.com" required
+                        autocomplete="email" />
+                </div>
+                <div class="auth-field">
+                    <label for="reg-password"><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="reg-password" name="password" placeholder="Min. 6 characters" required
+                        minlength="6" autocomplete="new-password" />
+                </div>
+                <input type="hidden" name="role" value="patient" />
+                <button type="submit" class="auth-submit">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </button>
+            </form>
+            <p class="auth-footer-text">
+                Already have an account? <a href="/login">Sign in</a>
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- System requires authentication -->
+        <div class="auth-alt-link">
+            <span class="auth-secure-badge">
+                <i class="fas fa-shield-alt"></i> Secure clinical screening platform
+            </span>
+        </div>
+    </div>
+
+    <script>
+        /* ===== PARTICLE CANVAS ===== */
+        (function initParticles() {
+            const canvas = document.getElementById('particle-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            const PARTICLE_COUNT = 50;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            class Particle {
+                constructor() { this.reset(); }
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.vx = (Math.random() - 0.5) * 0.3;
+                    this.vy = (Math.random() - 0.5) * 0.3;
+                    this.radius = Math.random() * 1.8 + 0.5;
+                    this.opacity = Math.random() * 0.3 + 0.05;
+                }
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+                }
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(0, 229, 176, ${this.opacity})`;
+                    ctx.fill();
+                }
+            }
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => { p.update(); p.draw(); });
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 120) {
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.strokeStyle = `rgba(0, 229, 176, ${0.04 * (1 - dist / 120)})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+                requestAnimationFrame(animate);
+            }
+            animate();
+        })();
+
+        /* ===== THEME ===== */
+        (function () {
+            const saved = localStorage.getItem('retinai-theme');
+            if (saved) document.documentElement.setAttribute('data-theme', saved);
+        })();
+    </script>
+</body>
+
+</html>

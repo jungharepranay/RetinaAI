@@ -28,3 +28,11 @@ models/*.pth
 # OS specific
 .DS_Store
 Thumbs.db
+
+# Database and uploads
+data/retinai.db
+data/uploads/
+*.sqlite3
+
+# Temp files
+temp_metrics.txt

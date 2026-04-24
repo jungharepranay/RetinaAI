@@ -1,0 +1,141 @@
+{
+  "ensemble_method": "Per-Class AUC",
+  "models": [
+    {
+      "name": "efficientnet_b3",
+      "timm_name": "efficientnet_b3",
+      "weight_path": "models/ensemble_efficientnet_b3.pth",
+      "dropout": 0.3,
+      "best_auc": 0.8233882971222443
+    },
+    {
+      "name": "densenet121",
+      "timm_name": "densenet121",
+      "weight_path": "models/ensemble_densenet121.pth",
+      "dropout": 0.3,
+      "best_auc": 0.8255133284275161
+    },
+    {
+      "name": "convnext_tiny",
+      "timm_name": "convnext_tiny",
+      "weight_path": "models/ensemble_convnext_tiny.pth",
+      "dropout": 0.4,
+      "best_auc": 0.8627731457333356
+    }
+  ],
+  "ensemble_optimal_thresholds": {
+    "N": 0.27,
+    "D": 0.33,
+    "G": 0.835,
+    "C": 0.78,
+    "A": 0.725,
+    "H": 0.55,
+    "M": 0.945,
+    "O": 0.545
+  },
+  "ensemble_auc": 0.8599820639445279,
+  "ensemble_metrics": {
+    "ensemble_method": "Per-Class AUC",
+    "auc_macro": 0.86,
+    "f1_macro": 0.628,
+    "f1_micro": 0.5962,
+    "precision_macro": 0.6192,
+    "recall_macro": 0.6774,
+    "hamming_loss": 0.1439,
+    "per_class_auc": {
+      "N": 0.7264,
+      "D": 0.7937,
+      "G": 0.9374,
+      "C": 0.9597,
+      "A": 0.8943,
+      "H": 0.9085,
+      "M": 0.9551,
+      "O": 0.7048
+    },
+    "per_class_f1": {
+      "N": 0.5917,
+      "D": 0.6203,
+      "G": 0.626,
+      "C": 0.7485,
+      "A": 0.6555,
+      "H": 0.433,
+      "M": 0.8596,
+      "O": 0.4894
+    },
+    "optimal_thresholds": {
+      "N": 0.27,
+      "D": 0.33,
+      "G": 0.835,
+      "C": 0.78,
+      "A": 0.725,
+      "H": 0.55,
+      "M": 0.945,
+      "O": 0.545
+    },
+    "individual_model_aucs": {
+      "efficientnet_b3": 0.8234,
+      "densenet121": 0.8255,
+      "convnext_tiny": 0.8628
+    },
+    "training_time_minutes": 111.2,
+    "models": [
+      "efficientnet_b3",
+      "densenet121",
+      "convnext_tiny"
+    ]
+  },
+  "disease_columns": [
+    "N",
+    "D",
+    "G",
+    "C",
+    "A",
+    "H",
+    "M",
+    "O"
+  ],
+  "img_size": 224,
+  "use_clahe": true,
+  "per_class_weights": {
+    "N": {
+      "efficientnet_b3": 0.3288,
+      "densenet121": 0.3248,
+      "convnext_tiny": 0.3463
+    },
+    "D": {
+      "efficientnet_b3": 0.3222,
+      "densenet121": 0.3274,
+      "convnext_tiny": 0.3504
+    },
+    "G": {
+      "efficientnet_b3": 0.3265,
+      "densenet121": 0.3331,
+      "convnext_tiny": 0.3404
+    },
+    "C": {
+      "efficientnet_b3": 0.3312,
+      "densenet121": 0.3334,
+      "convnext_tiny": 0.3355
+    },
+    "A": {
+      "efficientnet_b3": 0.3212,
+      "densenet121": 0.3297,
+      "convnext_tiny": 0.3492
+    },
+    "H": {
+      "efficientnet_b3": 0.3365,
+      "densenet121": 0.3286,
+      "convnext_tiny": 0.3349
+    },
+    "M": {
+      "efficientnet_b3": 0.3353,
+      "densenet121": 0.3285,
+      "convnext_tiny": 0.3362
+    },
+    "O": {
+      "efficientnet_b3": 0.3165,
+      "densenet121": 0.3201,
+      "convnext_tiny": 0.3635
+    }
+  }
+}

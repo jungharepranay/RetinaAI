@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}RetinAI — Patient Dashboard{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<div class="dash-page">
+    <!-- Welcome Banner -->
+    <div class="dash-welcome">
+        <div class="dash-welcome-text">
+            <h1><i class="fas fa-hand-holding-medical"></i> Welcome back, {{ user.name }}</h1>
+            <p>Your personal retinal health screening dashboard</p>
+        </div>
+        <a href="/patient/upload" class="dash-welcome-cta">
+            <i class="fas fa-plus-circle"></i> New Scan
+        </a>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="dash-stats-grid">
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon stat-blue">
+                <i class="fas fa-eye"></i>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-value">{{ stats.total_scans }}</span>
+                <span class="dash-stat-label">Total Scans</span>
+            </div>
+        </div>
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon
+                {% if stats.last_risk == 'urgent' %}stat-red
+                {% elif stats.last_risk == 'semi-urgent' %}stat-yellow
+                {% else %}stat-green{% endif %}">
+                <i class="fas fa-heartbeat"></i>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-value">
+                    {% if stats.last_risk == 'urgent' %}
+                        <span class="risk-text-urgent">Urgent</span>
+                    {% elif stats.last_risk == 'semi-urgent' %}
+                        <span class="risk-text-warning">Follow-up</span>
+                    {% elif stats.last_risk %}
+                        <span class="risk-text-normal">Normal</span>
+                    {% else %}—{% endif %}
+                </span>
+                <span class="dash-stat-label">Last Scan Risk</span>
+            </div>
+        </div>
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon stat-purple">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-value">Active</span>
+                <span class="dash-stat-label">Screening Status</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Section (shown when visiting /patient/upload) -->
+    {% if show_upload %}
+    <div class="dash-section" id="upload-section">
+        <div class="dash-section-header">
+            <h2><i class="fas fa-upload"></i> Upload Retinal Scan</h2>
+        </div>
+        <div class="dash-upload-card">
+            <form method="post" action="/patient/upload" enctype="multipart/form-data" class="dash-upload-form"
+                id="patient-upload-form">
+                <div class="dash-upload-area" id="pat-upload-area">
+                    <div class="dash-upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <div class="dash-upload-icon-ring"></div>
+                    </div>
+                    <h3>Select Retinal Fundus Image</h3>
+                    <p>Drag & drop or click to select — JPEG, PNG, or BMP</p>
+                    <input type="file" name="file" id="pat-file-input" accept="image/*" required hidden />
+                    <button type="button" class="dash-btn-outline"
+                        onclick="document.getElementById('pat-file-input').click()">
+                        <i class="fas fa-folder-open"></i> Choose Image
+                    </button>
+                    <div class="dash-preview hidden" id="pat-preview">
+                        <img id="pat-preview-img" alt="Preview" />
+                        <span id="pat-file-name"></span>
+                    </div>
+                </div>
+
+                <!-- Optional patient context -->
+                <div class="dash-context-grid">
+                    <div class="dash-context-header">
+                        <i class="fas fa-notes-medical"></i>
+                        <div>
+                            <h3>Clinical Context</h3>
+                            <p>Optional — helps improve screening accuracy</p>
+                        </div>
+                    </div>
+                    <div class="dash-context-fields">
+                        <div class="dash-field">
+                            <label for="pat-age"><i class="fas fa-birthday-cake"></i> Age</label>
+                            <input type="number" id="pat-age" name="age" placeholder="e.g. 55" min="1" max="120" />
+                        </div>
+                        <div class="dash-field">
+                            <label><i class="fas fa-tint"></i> Diabetic</label>
+                            <select name="diabetic">
+                                <option value="">—</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                        <div class="dash-field">
+                            <label><i class="fas fa-heartbeat"></i> Hypertension</label>
+                            <select name="hypertension">
+                                <option value="">—</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                            </select>
+                        </div>
+                        <div class="dash-field">
+                            <label><i class="fas fa-eye-slash"></i> Vision Concerns</label>
+                            <select name="vision_issues">
+                                <option value="">None</option>
+                                <option value="Blurred vision">Blurred vision</option>
+                                <option value="Peripheral vision loss">Peripheral vision loss</option>
+                                <option value="Floaters or flashes">Floaters or flashes</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="dash-btn-primary dash-btn-full" id="pat-submit-btn">
+                    <i class="fas fa-microscope"></i> Begin Screening
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Scans -->
+    <div class="dash-section">
+        <div class="dash-section-header">
+            <h2><i class="fas fa-history"></i> Recent Reports</h2>
+            {% if recent_scans %}
+            <span class="dash-section-badge">{{ recent_scans | length }} reports</span>
+            {% endif %}
+        </div>
+
+        {% if recent_scans %}
+        <div class="dash-scan-list">
+            {% for scan in recent_scans %}
+            <a href="/patient/report/{{ scan.id }}" class="dash-scan-item">
+                <div class="dash-scan-risk
+                    {% if scan.risk_priority == 'urgent' %}risk-urgent
+                    {% elif scan.risk_priority == 'semi-urgent' %}risk-warning
+                    {% else %}risk-normal{% endif %}">
+                    <i class="fas fa-{% if scan.risk_priority == 'urgent' %}exclamation-circle
+                        {% elif scan.risk_priority == 'semi-urgent' %}exclamation-triangle
+                        {% else %}check-circle{% endif %}"></i>
+                </div>
+                <div class="dash-scan-info">
+                    <span class="dash-scan-date">{{ scan.created_at }}</span>
+                    <span class="dash-scan-risk-text">
+                        {% if scan.risk_priority == 'urgent' %}Urgent — Needs Attention
+                        {% elif scan.risk_priority == 'semi-urgent' %}Follow-up Recommended
+                        {% else %}Normal Screening{% endif %}
+                    </span>
+                </div>
+                <div class="dash-scan-badge
+                    {% if scan.risk_priority == 'urgent' %}badge-urgent
+                    {% elif scan.risk_priority == 'semi-urgent' %}badge-warning
+                    {% else %}badge-normal{% endif %}">
+                    {% if scan.risk_priority == 'urgent' %}Urgent
+                    {% elif scan.risk_priority == 'semi-urgent' %}Follow-up
+                    {% else %}Normal{% endif %}
+                </div>
+                <div class="dash-scan-arrow">
+                    <i class="fas fa-chevron-right"></i>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="dash-empty-state">
+            <div class="dash-empty-icon">
+                <i class="fas fa-eye"></i>
+            </div>
+            <h3>No Scans Yet</h3>
+            <p>Upload your first retinal scan to get started with AI-powered screening.</p>
+            <a href="/patient/upload" class="dash-btn-primary">
+                <i class="fas fa-upload"></i> Upload First Scan
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    /* File upload preview */
+    const patFileInput = document.getElementById('pat-file-input');
+    const patUploadArea = document.getElementById('pat-upload-area');
+    const patPreview = document.getElementById('pat-preview');
+
+    if (patFileInput) {
+        patFileInput.addEventListener('change', function () {
+            if (this.files.length) {
+                const file = this.files[0];
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('pat-preview-img').src = e.target.result;
+                    document.getElementById('pat-file-name').textContent = file.name;
+                    patPreview.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        if (patUploadArea) {
+            /* Drag & drop */
+            patUploadArea.addEventListener('dragover', e => {
+                e.preventDefault();
+                patUploadArea.classList.add('drag-over');
+            });
+            patUploadArea.addEventListener('dragleave', () => {
+                patUploadArea.classList.remove('drag-over');
+            });
+            patUploadArea.addEventListener('drop', e => {
+                e.preventDefault();
+                patUploadArea.classList.remove('drag-over');
+                if (e.dataTransfer.files.length) {
+                    patFileInput.files = e.dataTransfer.files;
+                    patFileInput.dispatchEvent(new Event('change'));
+                }
+            });
+            patUploadArea.addEventListener('click', e => {
+                if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
+                    patFileInput.click();
+                }
+            });
+        }
+
+        /* Submit loading state */
+        const form = document.getElementById('patient-upload-form');
+        if (form) {
+            form.addEventListener('submit', function () {
+                const btn = document.getElementById('pat-submit-btn');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing — this may take a moment...';
+            });
+        }
+    }
+</script>
+{% endblock %}

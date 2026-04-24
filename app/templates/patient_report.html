@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+{% block title %}RetinAI — Scan Report{% endblock %}
+{% block nav_dashboard %}{% endblock %}
+
+{% set pred = scan.prediction_output %}
+{% set assessment = pred.get('clinical_assessment', {}) if pred else {} %}
+{% set findings = assessment.get('key_findings', []) if assessment else [] %}
+{% set urgency = assessment.get('urgency', 'routine') if assessment else 'routine' %}
+
+{% block content %}
+<div class="dash-page">
+    <!-- Back Navigation -->
+    <div class="dash-breadcrumb">
+        <a href="/patient/dashboard"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+    </div>
+
+    <!-- Report Header -->
+    <div class="report-header
+        {% if urgency == 'urgent' %}report-urgent
+        {% elif urgency == 'semi-urgent' %}report-warning
+        {% else %}report-normal{% endif %}">
+        <div class="report-header-icon">
+            <i class="fas fa-{% if urgency == 'urgent' %}exclamation-circle
+                {% elif urgency == 'semi-urgent' %}exclamation-triangle
+                {% else %}check-circle{% endif %}"></i>
+        </div>
+        <div class="report-header-text">
+            <h1>
+                {% if urgency == 'urgent' %}Urgent — Attention Needed
+                {% elif urgency == 'semi-urgent' %}Follow-up Recommended
+                {% else %}Normal Screening Result{% endif %}
+            </h1>
+            <p>Scan #{{ scan.id }} — {{ scan.created_at }}</p>
+        </div>
+    </div>
+
+    <!-- ===== STRUCTURED REPORT SECTIONS ===== -->
+
+    <!-- SECTION 1: Summary -->
+    <div class="report-section-card report-section-summary" id="report-sec-summary">
+        <div class="report-section-icon">
+            <i class="fas fa-file-medical-alt"></i>
+        </div>
+        <div class="report-section-content">
+            <h2>Summary</h2>
+            <div class="report-section-body" id="section-summary-body">
+                {% if urgency == 'routine' %}
+                    <p>The AI screening did not detect any significant retinal abnormalities. Your results are within normal limits.</p>
+                {% elif urgency == 'semi-urgent' %}
+                    <p>The screening detected some findings that may warrant a follow-up appointment with an eye care professional.</p>
+                {% else %}
+                    <p>The screening detected findings that require prompt attention. Please consult an ophthalmologist as soon as possible.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 2: Key Findings -->
+    {% if findings %}
+    <div class="report-section-card report-section-findings">
+        <div class="report-section-icon">
+            <i class="fas fa-search"></i>
+        </div>
+        <div class="report-section-content">
+            <h2>Key Findings</h2>
+            <div class="report-section-body">
+                <div class="report-findings-list">
+                    {% for f in findings %}
+                    <div class="report-finding-row
+                        {% if f.risk_level == 'High Risk' %}finding-high
+                        {% elif f.risk_level == 'Borderline' %}finding-borderline
+                        {% else %}finding-low{% endif %}">
+                        <div class="report-finding-indicator">
+                            <span class="report-finding-dot"></span>
+                        </div>
+                        <div class="report-finding-detail">
+                            <span class="report-finding-disease">{{ f.disease }}</span>
+                            <span class="report-finding-desc">{{ f.description or '' }}</span>
+                        </div>
+                        <div class="report-finding-risk-badge
+                            {% if f.risk_level == 'High Risk' %}badge-urgent
+                            {% elif f.risk_level == 'Borderline' %}badge-warning
+                            {% else %}badge-normal{% endif %}">
+                            <i class="fas fa-circle"></i> {{ f.risk_level }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% elif urgency == 'routine' %}
+    <div class="report-section-card report-section-allclear">
+        <div class="report-section-icon icon-success">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="report-section-content">
+            <h2>Key Findings</h2>
+            <div class="report-section-body">
+                <div class="report-allclear">
+                    <p><i class="fas fa-check"></i> No significant retinal abnormalities detected</p>
+                    <p class="allclear-note">Continue routine eye examinations as recommended for your age group.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- SECTION 3: Why This Matters (Parsed from LLM output) -->
+    <div class="report-section-card report-section-context" id="report-sec-context">
+        <div class="report-section-icon icon-info">
+            <i class="fas fa-info-circle"></i>
+        </div>
+        <div class="report-section-content">
+            <h2>Why This Matters For You</h2>
+            <div class="report-section-body" id="section-context-body">
+                <!-- Populated by JS from LLM output -->
+                <p class="report-placeholder">Loading clinical context...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 4: Recommendations (Parsed from LLM output) -->
+    <div class="report-section-card report-section-recommendations" id="report-sec-recs">
+        <div class="report-section-icon icon-action">
+            <i class="fas fa-clipboard-list"></i>
+        </div>
+        <div class="report-section-content">
+            <h2>Recommendations</h2>
+            <div class="report-section-body" id="section-recs-body">
+                <!-- Populated by JS from LLM output -->
+                <p class="report-placeholder">Loading recommendations...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION 5: Disclaimer -->
+    <div class="report-section-card report-section-disclaimer">
+        <div class="report-section-icon icon-muted">
+            <i class="fas fa-shield-alt"></i>
+        </div>
+        <div class="report-section-content">
+            <h2>Important Notice</h2>
+            <div class="report-section-body">
+                <p class="report-disclaimer-text">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    This is an <strong>AI-assisted screening tool</strong> and should not be used as a definitive diagnosis.
+                    Results are intended to support — not replace — clinical decision-making by qualified healthcare professionals.
+                    Always consult your ophthalmologist or healthcare provider for a comprehensive eye examination.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Understand Your Results (LLM Q&A) -->
+    <div class="dash-section">
+        <div class="dash-section-header">
+            <h2><i class="fas fa-comment-medical"></i> Ask About Your Results</h2>
+        </div>
+        <div class="report-qa-card">
+            <p class="report-qa-intro">Select a question or type your own to learn more about your screening results.</p>
+
+            <div class="report-qa-suggestions">
+                <button class="report-qa-btn" onclick="askReportQuestion('What does this result mean?')">
+                    <i class="fas fa-question-circle"></i> What does this result mean?
+                </button>
+                <button class="report-qa-btn" onclick="askReportQuestion('How serious is this?')">
+                    <i class="fas fa-exclamation-circle"></i> How serious is this?
+                </button>
+                <button class="report-qa-btn" onclick="askReportQuestion('What should I do next?')">
+                    <i class="fas fa-directions"></i> What should I do next?
+                </button>
+                <button class="report-qa-btn" onclick="askReportQuestion('Should I consult a doctor?')">
+                    <i class="fas fa-user-md"></i> Should I consult a doctor?
+                </button>
+            </div>
+
+            <div class="report-qa-custom">
+                <input type="text" id="report-qa-input" placeholder="Ask about your results…"
+                    onkeydown="if(event.key==='Enter') submitReportQuestion()" />
+                <button onclick="submitReportQuestion()" id="report-qa-submit">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+
+            <div class="report-qa-response hidden" id="report-qa-response">
+                <div class="report-qa-loading hidden" id="report-qa-loading">
+                    <div class="dash-spinner"></div>
+                    <span>Generating response…</span>
+                </div>
+                <div id="report-qa-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="report-actions">
+        <a href="/patient/upload" class="dash-btn-primary">
+            <i class="fas fa-redo"></i> New Scan
+        </a>
+        <a href="/patient/dashboard" class="dash-btn-outline">
+            <i class="fas fa-arrow-left"></i> Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const assessmentData = {{ (assessment | tojson) if assessment else '{}' | safe }};
+
+    function escHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    /**
+     * Parse LLM explanation into structured sections.
+     * Expected sections: Summary, Key Findings, What This Means, Next Steps
+     */
+    function parseLLMSections(text) {
+        if (!text) return null;
+
+        const sections = {
+            summary: '',
+            findings: '',
+            context: '',     // "What This Means"
+            recommendations: '' // "Next Steps"
+        };
+
+        // Normalize section headers (handle **, ##, plain text variants)
+        const sectionPatterns = [
+            { key: 'summary',         patterns: [/summary/i] },
+            { key: 'findings',        patterns: [/key\s*findings/i, /findings/i] },
+            { key: 'context',         patterns: [/what\s*this\s*means/i, /why\s*this\s*matters/i, /context/i] },
+            { key: 'recommendations', patterns: [/next\s*steps/i, /recommendations/i, /what\s*to\s*do/i] }
+        ];
+
+        // Split by common section header patterns
+        const headerRegex = /^(?:\*{1,2}|#{1,3})?\s*(Summary|Key\s*Findings|What\s*This\s*Means|Why\s*This\s*Matters|Next\s*Steps|Recommendations|What\s*(?:To|to)\s*Do)\s*(?:\*{1,2})?:?\s*$/gim;
+
+        const lines = text.split('\n');
+        let currentSection = 'summary'; // default to summary if no header found first
+        let firstHeaderFound = false;
+        let preHeaderLines = [];
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                if (firstHeaderFound) {
+                    sections[currentSection] += '\n';
+                } else {
+                    preHeaderLines.push('');
+                }
+                continue;
+            }
+
+            // Check if this line is a section header
+            let matched = false;
+            for (const sp of sectionPatterns) {
+                for (const pat of sp.patterns) {
+                    // Match lines like "**Summary**:", "## Key Findings", "Summary:", etc.
+                    const cleanLine = trimmed.replace(/^[#*\s]+/, '').replace(/[*:]+$/, '').trim();
+                    if (pat.test(cleanLine) && cleanLine.length < 40) {
+                        currentSection = sp.key;
+                        matched = true;
+                        firstHeaderFound = true;
+                        break;
+                    }
+                }
+                if (matched) break;
+            }
+
+            if (!matched) {
+                if (firstHeaderFound) {
+                    sections[currentSection] += line + '\n';
+                } else {
+                    preHeaderLines.push(line);
+                }
+            }
+        }
+
+        // If no headers found at all, put everything in summary
+        if (!firstHeaderFound) {
+            sections.summary = text;
+            return sections;
+        }
+
+        // Pre-header content goes to summary if summary is empty
+        if (!sections.summary.trim() && preHeaderLines.length > 0) {
+            sections.summary = preHeaderLines.join('\n');
+        }
+
+        return sections;
+    }
+
+    function renderMarkdown(text) {
+        if (!text || !text.trim()) return '';
+        const processed = text.trim();
+        if (typeof marked !== 'undefined' && marked.parse) {
+            return marked.parse(processed);
+        }
+        return escHtml(processed).replace(/\n/g, '<br>');
+    }
+
+    /**
+     * Populate the structured report sections from LLM output
+     */
+    function populateReportSections() {
+        const explanation = assessmentData.explanation || '';
+        if (!explanation) {
+            // No LLM output — hide context and recs sections, show fallback
+            const ctxSection = document.getElementById('report-sec-context');
+            const recsSection = document.getElementById('report-sec-recs');
+            if (ctxSection) ctxSection.style.display = 'none';
+            if (recsSection) recsSection.style.display = 'none';
+            return;
+        }
+
+        const sections = parseLLMSections(explanation);
+        if (!sections) return;
+
+        // Summary section — enhance the default with LLM content
+        if (sections.summary && sections.summary.trim()) {
+            const summaryBody = document.getElementById('section-summary-body');
+            if (summaryBody) {
+                summaryBody.innerHTML = renderMarkdown(sections.summary);
+            }
+        }
+
+        // Context section — "Why This Matters"
+        const ctxBody = document.getElementById('section-context-body');
+        if (ctxBody) {
+            if (sections.context && sections.context.trim()) {
+                ctxBody.innerHTML = renderMarkdown(sections.context);
+            } else {
+                // Provide a sensible default
+                ctxBody.innerHTML = '<p>Your screening results have been analyzed by our AI system. ' +
+                    'The findings above indicate the current state of your retinal health. ' +
+                    'Please discuss these results with your healthcare provider for personalized guidance.</p>';
+            }
+        }
+
+        // Recommendations section
+        const recsBody = document.getElementById('section-recs-body');
+        if (recsBody) {
+            if (sections.recommendations && sections.recommendations.trim()) {
+                recsBody.innerHTML = renderMarkdown(sections.recommendations);
+            } else {
+                recsBody.innerHTML = '<ul>' +
+                    '<li>Discuss these results with your ophthalmologist or primary care provider</li>' +
+                    '<li>Continue with regular eye examinations as recommended</li>' +
+                    '<li>Maintain a healthy lifestyle to support eye health</li>' +
+                    '</ul>';
+            }
+        }
+    }
+
+    // Run on page load
+    document.addEventListener('DOMContentLoaded', populateReportSections);
+
+    /* ===== Q&A Functions ===== */
+    async function askReportQuestion(question) {
+        await _sendReportQuestion(question);
+    }
+
+    function submitReportQuestion() {
+        const input = document.getElementById('report-qa-input');
+        const q = input.value.trim();
+        if (!q) return;
+        _sendReportQuestion(q);
+        input.value = '';
+    }
+
+    async function _sendReportQuestion(question) {
+        const responseArea = document.getElementById('report-qa-response');
+        const loading = document.getElementById('report-qa-loading');
+        const content = document.getElementById('report-qa-content');
+
+        responseArea.classList.remove('hidden');
+        loading.classList.remove('hidden');
+        content.innerHTML = '';
+
+        document.querySelectorAll('.report-qa-btn').forEach(b => b.disabled = true);
+        document.getElementById('report-qa-submit').disabled = true;
+
+        const formData = new FormData();
+        formData.append('assessment', JSON.stringify(assessmentData));
+        formData.append('user_question', question);
+
+        try {
+            const res = await fetch('/explain', { method: 'POST', body: formData });
+            if (!res.ok) throw new Error('Service unavailable');
+            const data = await res.json();
+
+            const text = data.answer || data.llm_explanation || 'No explanation available.';
+            const isLLM = data.is_llm_generated;
+            const rendered = renderMarkdown(text);
+
+            content.innerHTML = `
+                <div class="report-qa-echo">
+                    <i class="fas fa-user"></i> <span>${escHtml(question)}</span>
+                </div>
+                <div class="report-qa-answer">
+                    <div class="report-qa-badge">
+                        <i class="fas ${isLLM ? 'fa-robot' : 'fa-file-alt'}"></i>
+                        ${isLLM ? 'AI-Generated' : 'Template'}
+                    </div>
+                    <div class="report-qa-text">${rendered}</div>
+                </div>`;
+        } catch (err) {
+            content.innerHTML = `<p class="report-qa-error"><i class="fas fa-exclamation-circle"></i> ${escHtml(err.message)}</p>`;
+        } finally {
+            loading.classList.add('hidden');
+            document.querySelectorAll('.report-qa-btn').forEach(b => b.disabled = false);
+            document.getElementById('report-qa-submit').disabled = false;
+        }
+
+        responseArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,69 @@
+{
+  "predictions": {
+    "Normal": false,
+    "Diabetes": false,
+    "Glaucoma": false,
+    "Cataract": false,
+    "Age-related Macular Degeneration": false,
+    "Hypertension": true,
+    "Myopia": false,
+    "Other Abnormalities": false
+  },
+  "confidence": {
+    "Normal": 0.08820000290870667,
+    "Diabetes": 0.3206999897956848,
+    "Glaucoma": 0.07599999755620956,
+    "Cataract": 0.004999999888241291,
+    "Age-related Macular Degeneration": 0.18960000574588776,
+    "Hypertension": 0.5078999996185303,
+    "Myopia": 0.0010000000474974513,
+    "Other Abnormalities": 0.125
+  },
+  "adjusted_confidence": {
+    "Normal": 0.0882,
+    "Diabetes": 0.3207,
+    "Glaucoma": 0.076,
+    "Cataract": 0.005,
+    "Age-related Macular Degeneration": 0.1896,
+    "Hypertension": 0.5079,
+    "Myopia": 0.001,
+    "Other Abnormalities": 0.125
+  },
+  "clinical_features": {
+    "dr": {
+      "exudate_count": 3,
+      "hemorrhage_count": 7,
+      "lesion_area": 0.321733
+    },
+    "glaucoma": {
+      "cdr": 0.8645
+    },
+    "myopia": {
+      "brightness": 101.34,
+      "texture_variance": 5666.43,
+      "vessel_visibility": 6.36
+    }
+  },
+  "quality_check": {
+    "is_valid": true,
+    "reason": "",
+    "blur_score": 624.04,
+    "brightness_mean": 106.04,
+    "contrast_std": 75.28
+  },
+  "gradcam": null,
+  "gradcam_paths": {},
+  "validation_rules_applied": [],
+  "llm_validation": {
+    "status": "LOW_CONFIDENCE",
+    "reason": "Hypertension predicted but no HTN history.",
+    "details": [
+      {
+        "disease": "Hypertensive Retinopathy",
+        "status": "LOW_CONFIDENCE",
+        "reason": "No hypertension history. Recommend BP check."
+      }
+    ]
+  },
+  "final_decision": "Detected: Hypertension (Moderate confidence: 50.79%). \u26a0 Clinical validation raised concerns \u2014 recommend further examination."
+}

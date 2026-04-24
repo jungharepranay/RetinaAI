@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}RetinAI — All Cases{% endblock %}
+{% block nav_cases %}active{% endblock %}
+
+{% block content %}
+<div class="dash-page">
+    <!-- Header -->
+    <div class="dash-section-header clin-cases-header">
+        <div>
+            <h2><i class="fas fa-folder-open"></i> All Patient Cases</h2>
+            {% if cases %}
+            <span class="clin-cases-count">{{ cases | length }} total cases</span>
+            {% endif %}
+        </div>
+        <div class="clin-sort-controls">
+            <a href="/clinician/cases?sort=latest"
+                class="clin-sort-btn {% if current_sort == 'latest' %}active{% endif %}">
+                <i class="fas fa-clock"></i> Latest
+            </a>
+            <a href="/clinician/cases?sort=risk"
+                class="clin-sort-btn {% if current_sort == 'risk' %}active{% endif %}">
+                <i class="fas fa-exclamation-triangle"></i> Risk Priority
+            </a>
+        </div>
+    </div>
+
+    {% if cases %}
+    <!-- Cases Table -->
+    <div class="clin-table-wrap">
+        <table class="clin-table" id="cases-table">
+            <thead>
+                <tr>
+                    <th class="th-patient">Patient</th>
+                    <th class="th-risk">Risk Level</th>
+                    <th class="th-date">Date</th>
+                    <th class="th-action">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for case in cases %}
+                <tr class="clin-table-row
+                    {% if case.risk_priority == 'urgent' %}row-urgent
+                    {% elif case.risk_priority == 'semi-urgent' %}row-warning{% endif %}">
+                    <td>
+                        <div class="clin-patient-cell">
+                            <div class="clin-patient-avatar
+                                {% if case.risk_priority == 'urgent' %}avatar-urgent
+                                {% elif case.risk_priority == 'semi-urgent' %}avatar-warning{% endif %}">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div>
+                                <span class="clin-patient-name">
+                                    {{ case.uploader_name or case.patient_name or 'Unknown' }}
+                                </span>
+                                <span class="clin-patient-meta">
+                                    Case #{{ case.id }}
+                                    {% if case.uploader_email %} · {{ case.uploader_email }}{% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="clin-risk-badge
+                            {% if case.risk_priority == 'urgent' %}badge-urgent
+                            {% elif case.risk_priority == 'semi-urgent' %}badge-warning
+                            {% else %}badge-normal{% endif %}">
+                            <span class="risk-dot"></span>
+                            {% if case.risk_priority == 'urgent' %}Urgent
+                            {% elif case.risk_priority == 'semi-urgent' %}Follow-up
+                            {% else %}Normal{% endif %}
+                        </span>
+                    </td>
+                    <td class="clin-date-cell">{{ case.created_at }}</td>
+                    <td>
+                        <a href="/clinician/case/{{ case.id }}" class="clin-view-btn">
+                            <i class="fas fa-external-link-alt"></i> Review
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="dash-empty-state">
+        <div class="dash-empty-icon">
+            <i class="fas fa-inbox"></i>
+        </div>
+        <h3>No Cases Found</h3>
+        <p>Patient scans will appear here once submitted.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

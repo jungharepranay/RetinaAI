@@ -1,174 +1,1492 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="AI-powered retinal disease detection from fundus images using deep learning." />
-    <title>Retinal Disease Detection — AI Diagnostic Tool</title>
+    <meta name="description"
+        content="AI-powered retinal disease screening with clinical decision support — safe, interpretable, and patient-friendly." />
+    <title>RetinAI — Clinical Screening Assistant</title>
+
+    <!-- Vendor: Bootstrap 5.3.0 (local) -->
+    <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css" />
+    <!-- Vendor: Font Awesome 5.15.4 (local) -->
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css" />
+    <!-- App Styles -->
     <link rel="stylesheet" href="/static/style.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet" />
 </head>
 
 <body>
-    <div class="app-container">
-        <!-- Header -->
-        <header class="header">
-            <div class="logo">
-                <span class="logo-icon">👁️</span>
-                <h1>RetinAI</h1>
-            </div>
-            <p class="tagline">Multi-Label Retinal Disease Detection</p>
-        </header>
+    <!-- Particle Canvas Background -->
+    <canvas id="particle-canvas"></canvas>
 
-        <!-- Upload Section -->
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="app-container">
+
+        <!-- ===== NAVIGATION BAR (Auth-aware) ===== -->
+        <nav class="app-navbar" id="app-navbar">
+            <div class="app-navbar-inner">
+                <a href="/dashboard" class="navbar-brand-link">
+                    <div class="logo-svg-wrap-sm">
+                        <svg class="logo-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="eyeGradNav" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#00e5b0" />
+                                    <stop offset="50%" stop-color="#00c2ff" />
+                                    <stop offset="100%" stop-color="#7c6aff" />
+                                </linearGradient>
+                                <radialGradient id="irisGradNav" cx="50%" cy="50%" r="50%">
+                                    <stop offset="0%" stop-color="#00e5b0" />
+                                    <stop offset="60%" stop-color="#00849a" />
+                                    <stop offset="100%" stop-color="#0c1220" />
+                                </radialGradient>
+                            </defs>
+                            <path d="M8,40 Q40,8 72,40 Q40,72 8,40 Z" fill="none" stroke="url(#eyeGradNav)"
+                                stroke-width="2.5" />
+                            <circle cx="40" cy="40" r="16" fill="url(#irisGradNav)" opacity="0.9" />
+                            <circle cx="40" cy="40" r="7" fill="#060a13" />
+                            <circle cx="35" cy="35" r="3" fill="rgba(255,255,255,0.6)" />
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="navbar-brand-name">RetinAI</span>
+                        <span class="navbar-brand-tag">Clinical Screening</span>
+                    </div>
+                </a>
+
+                <div class="navbar-nav-links">
+                    <a href="/dashboard" class="navbar-nav-link active" id="nav-dashboard-link">
+                        <i class="fas fa-th-large"></i> Dashboard
+                    </a>
+                </div>
+
+                <div class="navbar-right">
+                    {% if user %}
+                    <div class="navbar-user-info">
+                        <div class="navbar-user-avatar">
+                            <i class="fas fa-{% if user.role == 'clinician' %}user-md{% else %}user{% endif %}"></i>
+                        </div>
+                        <div class="navbar-user-meta">
+                            <span class="navbar-user-name">{{ user.name }}</span>
+                        </div>
+                    </div>
+                    <a href="/logout" class="navbar-btn" title="Logout" id="nav-logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </a>
+                    {% endif %}
+                    <button class="navbar-btn" id="theme-toggle" title="Toggle theme">
+                        <i class="fas fa-moon" id="theme-icon"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
         <main class="main-card">
+
+            <!-- Step Progress Indicator -->
+            <div class="step-progress" id="step-progress">
+                <div class="step-item">
+                    <div class="step-circle active" id="step-1">
+                        <i class="fas fa-upload"></i>
+                        <span class="step-label">Input</span>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-line" id="line-1-2"></div>
+                    <div class="step-circle" id="step-2">
+                        <i class="fas fa-brain"></i>
+                        <span class="step-label">Analysis</span>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-line" id="line-2-3"></div>
+                    <div class="step-circle" id="step-3">
+                        <i class="fas fa-file-medical-alt"></i>
+                        <span class="step-label">Results</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======================================= -->
+            <!--  STEP 1: Upload + Patient Input          -->
+            <!-- ======================================= -->
             <section class="upload-section" id="upload-section">
                 <div class="upload-area" id="upload-area">
-                    <div class="upload-icon">📷</div>
+                    <div class="upload-icon-wrap">
+                        <i class="fas fa-eye upload-icon"></i>
+                        <div class="upload-icon-ring"></div>
+                    </div>
                     <h2>Upload Retinal Fundus Image</h2>
-                    <p>Drag &amp; drop an image or click to browse</p>
+                    <p>Drag & drop an image or click to browse</p>
+                    <div class="upload-formats">
+                        <span><i class="fas fa-check-circle"></i> JPEG</span>
+                        <span><i class="fas fa-check-circle"></i> PNG</span>
+                        <span><i class="fas fa-check-circle"></i> BMP</span>
+                    </div>
                     <input type="file" id="file-input" accept="image/*" hidden />
-                    <button class="btn-primary" id="browse-btn">Choose Image</button>
+                    <button class="btn-primary" id="browse-btn">
+                        <i class="fas fa-folder-open"></i> Choose Image
+                    </button>
+                </div>
+
+                <!-- Image Validation Error -->
+                <div class="validation-error-card hidden" id="validation-error">
+                    <div class="validation-error-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3>Not a Retinal Image</h3>
+                    <p id="validation-error-msg">Please upload a valid retinal fundus image.</p>
+                    <button class="btn-secondary" onclick="resetUI()">
+                        <i class="fas fa-redo"></i> Try Again
+                    </button>
                 </div>
 
                 <!-- Preview -->
                 <div class="preview-container hidden" id="preview-container">
-                    <img id="preview-img" alt="Retinal fundus image preview" />
+                    <div class="preview-image-wrap">
+                        <img id="preview-img" alt="Retinal fundus image preview" />
+                        <div class="preview-overlay"><i class="fas fa-search-plus"></i></div>
+                    </div>
                     <div class="preview-info">
-                        <span id="file-name"></span>
-                        <button class="btn-secondary" id="change-btn">Change</button>
+                        <div class="preview-file-details">
+                            <i class="fas fa-image"></i>
+                            <span id="file-name"></span>
+                        </div>
+                        <button class="btn-secondary" id="change-btn">
+                            <i class="fas fa-sync-alt"></i> Change
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Patient Intake Form -->
+                <div class="patient-intake hidden" id="patient-intake">
+                    <h3><i class="fas fa-user-md"></i> Patient Information <span class="intake-optional">(improves
+                            interpretation)</span></h3>
+                    <div class="intake-grid">
+                        <div class="intake-field">
+                            <label for="intake-name">Name</label>
+                            <input type="text" id="intake-name" placeholder="Patient name"
+                                value="{% if user %}{{ user.name }}{% endif %}" />
+                        </div>
+                        <div class="intake-field">
+                            <label for="intake-age">Age <span class="field-required">*</span></label>
+                            <input type="number" id="intake-age" placeholder="e.g. 55" min="1" max="120" />
+                        </div>
+                        <div class="intake-field">
+                            <label>Diabetic <span class="field-required">*</span></label>
+                            <div class="intake-toggle-group" id="intake-diabetic">
+                                <button class="intake-toggle" data-value="yes" onclick="setIntakeToggle(this)">
+                                    <i class="fas fa-check"></i> Yes
+                                </button>
+                                <button class="intake-toggle" data-value="no" onclick="setIntakeToggle(this)">
+                                    <i class="fas fa-times"></i> No
+                                </button>
+                            </div>
+                        </div>
+                        <div class="intake-field">
+                            <label>Hypertension</label>
+                            <div class="intake-toggle-group" id="intake-hypertension">
+                                <button class="intake-toggle" data-value="yes" onclick="setIntakeToggle(this)">
+                                    <i class="fas fa-check"></i> Yes
+                                </button>
+                                <button class="intake-toggle" data-value="no" onclick="setIntakeToggle(this)">
+                                    <i class="fas fa-times"></i> No
+                                </button>
+                            </div>
+                        </div>
+                        <div class="intake-field">
+                            <label for="intake-vision">Vision Concerns</label>
+                            <select id="intake-vision">
+                                <option value="">None</option>
+                                <option value="Blurry or hazy vision">Blurry or hazy vision</option>
+                                <option value="Difficulty seeing from the sides">Difficulty seeing from the sides</option>
+                                <option value="Things far away look blurry">Things far away look blurry</option>
+                                <option value="Seeing spots, floaters, or flashes of light">Seeing spots, floaters, or flashes of light</option>
+                                <option value="Other concerns">Other concerns</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
                 <button class="btn-analyze hidden" id="analyze-btn">
-                    <span class="btn-text">Analyze Image</span>
+                    <span class="btn-text"><i class="fas fa-microscope"></i> Begin Screening</span>
                     <span class="btn-spinner hidden" id="spinner"></span>
                 </button>
             </section>
 
-            <!-- Results -->
-            <section class="results-section hidden" id="results-section">
-                <h2>Diagnosis Results</h2>
-                <div class="results-grid" id="results-grid"></div>
+            <!-- ======================================= -->
+            <!--  STEP 2: Processing Animation            -->
+            <!-- ======================================= -->
+            <section class="processing-section hidden" id="processing-section">
+                <div class="processing-card">
+                    <div class="processing-icon">
+                        <div class="processing-ring"></div>
+                        <i class="fas fa-brain processing-brain"></i>
+                    </div>
+                    <h2>Analyzing Retinal Image</h2>
+                    <div class="processing-steps">
+                        <div class="proc-step active" id="proc-step-1">
+                            <i class="fas fa-check-circle"></i> Image Quality Check
+                        </div>
+                        <div class="proc-step" id="proc-step-2">
+                            <i class="fas fa-circle-notch fa-spin"></i> Feature Extraction
+                        </div>
+                        <div class="proc-step" id="proc-step-3">
+                            <i class="fas fa-circle"></i> AI Prediction
+                        </div>
+                        <div class="proc-step" id="proc-step-4">
+                            <i class="fas fa-circle"></i> Clinical Assessment
+                        </div>
+                    </div>
+                </div>
             </section>
 
-            <!-- Error -->
+            <!-- ======================================= -->
+            <!--  STEP 3: Results                         -->
+            <!-- ======================================= -->
+            <section class="results-section hidden" id="results-section"></section>
+
+            <!-- Error (fallback) -->
             <div class="error-banner hidden" id="error-banner">
+                <i class="fas fa-exclamation-triangle"></i>
                 <span id="error-msg"></span>
             </div>
         </main>
 
         <footer class="footer">
-            <p>Created By Group_15</p>
+            <p><i class="fas fa-heartbeat"></i> Created By Group_15 — RetinAI Clinical Screening Platform</p>
+            <p class="footer-disclaimer">AI-assisted screening tool. Not a substitute for professional medical diagnosis.</p>
         </footer>
     </div>
 
+    <!-- Vendor JS -->
+    <script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/marked/marked.min.js"></script>
+
     <script>
-        const fileInput = document.getElementById('file-input');
-        const browseBtn = document.getElementById('browse-btn');
-        const uploadArea = document.getElementById('upload-area');
-        const previewCont = document.getElementById('preview-container');
-        const previewImg = document.getElementById('preview-img');
-        const fileName = document.getElementById('file-name');
-        const changeBtn = document.getElementById('change-btn');
-        const analyzeBtn = document.getElementById('analyze-btn');
-        const spinner = document.getElementById('spinner');
-        const resultsSec = document.getElementById('results-section');
-        const resultsGrid = document.getElementById('results-grid');
-        const errorBanner = document.getElementById('error-banner');
-        const errorMsg = document.getElementById('error-msg');
+        /* ============================================================= */
+        /*  DOM REFERENCES                                                */
+        /* ============================================================= */
+        const $ = id => document.getElementById(id);
+        const fileInput = $('file-input');
+        const browseBtn = $('browse-btn');
+        const uploadArea = $('upload-area');
+        const previewCont = $('preview-container');
+        const previewImg = $('preview-img');
+        const fileNameEl = $('file-name');
+        const changeBtn = $('change-btn');
+        const analyzeBtn = $('analyze-btn');
+        const spinner = $('spinner');
+        const stepProgress = $('step-progress');
+        const patientIntake = $('patient-intake');
+        const processingSec = $('processing-section');
+        const resultsSec = $('results-section');
+        const errorBanner = $('error-banner');
+        const errorMsg = $('error-msg');
+        const toastContainer = $('toast-container');
+        const validationError = $('validation-error');
+        const validationErrorMsg = $('validation-error-msg');
 
         let selectedFile = null;
+        let assessmentData = null;
 
-        browseBtn.addEventListener('click', () => fileInput.click());
+        /* ============================================================= */
+        /*  PARTICLE CANVAS BACKGROUND                                    */
+        /* ============================================================= */
+        (function initParticles() {
+            const canvas = $('particle-canvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            const PARTICLE_COUNT = 60;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            class Particle {
+                constructor() { this.reset(); }
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.vx = (Math.random() - 0.5) * 0.3;
+                    this.vy = (Math.random() - 0.5) * 0.3;
+                    this.radius = Math.random() * 1.8 + 0.5;
+                    this.opacity = Math.random() * 0.3 + 0.05;
+                }
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+                }
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(0, 229, 176, ${this.opacity})`;
+                    ctx.fill();
+                }
+            }
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => { p.update(); p.draw(); });
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 120) {
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.strokeStyle = `rgba(0, 229, 176, ${0.04 * (1 - dist / 120)})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+                requestAnimationFrame(animate);
+            }
+            animate();
+        })();
+
+        /* ============================================================= */
+        /*  THEME TOGGLE                                                  */
+        /* ============================================================= */
+        const themeToggle = $('theme-toggle');
+        const themeIcon = $('theme-icon');
+
+        themeToggle.addEventListener('click', () => {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            themeIcon.className = next === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+            localStorage.setItem('retinai-theme', next);
+        });
+
+        (function () {
+            const saved = localStorage.getItem('retinai-theme');
+            if (saved) {
+                document.documentElement.setAttribute('data-theme', saved);
+                themeIcon.className = saved === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+        })();
+
+        /* ============================================================= */
+        /*  TOAST NOTIFICATIONS                                           */
+        /* ============================================================= */
+        function showToast(message, type = 'error') {
+            const icons = { error: 'fa-exclamation-circle', success: 'fa-check-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
+            const toast = document.createElement('div');
+            toast.className = `toast-item toast-${type}`;
+            toast.innerHTML = `
+                <i class="fas ${icons[type] || icons.info} toast-icon"></i>
+                <span class="toast-msg">${esc(message)}</span>
+                <button class="toast-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
+            `;
+            toastContainer.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.add('show'));
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 400);
+            }, 5000);
+        }
+
+        /* ============================================================= */
+        /*  FILE HANDLING                                                 */
+        /* ============================================================= */
+        browseBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+        uploadArea.addEventListener('click', (e) => {
+            if (e.target !== browseBtn && !browseBtn.contains(e.target)) fileInput.click();
+        });
         changeBtn.addEventListener('click', () => { resetUI(); fileInput.click(); });
 
-        // Drag-and-drop
-        uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+        uploadArea.addEventListener('dragover', e => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
         uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
         uploadArea.addEventListener('drop', e => {
-            e.preventDefault(); uploadArea.classList.remove('drag-over');
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
             if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
 
-        fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) handleFile(fileInput.files[0]);
+        });
 
         function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showToast('Please upload an image file (JPEG, PNG, etc.)', 'warning');
+                return;
+            }
             selectedFile = file;
             const reader = new FileReader();
             reader.onload = e => { previewImg.src = e.target.result; };
             reader.readAsDataURL(file);
-            fileName.textContent = file.name;
+            fileNameEl.textContent = file.name;
             uploadArea.classList.add('hidden');
+            validationError.classList.add('hidden');
             previewCont.classList.remove('hidden');
+            patientIntake.classList.remove('hidden');
             analyzeBtn.classList.remove('hidden');
-            resultsSec.classList.add('hidden');
-            errorBanner.classList.add('hidden');
+            hideAllResults();
         }
 
         function resetUI() {
             selectedFile = null;
+            assessmentData = null;
             fileInput.value = '';
             previewCont.classList.add('hidden');
             analyzeBtn.classList.add('hidden');
+            patientIntake.classList.add('hidden');
+            validationError.classList.add('hidden');
             uploadArea.classList.remove('hidden');
+            hideAllResults();
+            setStep(1);
+            // Reset intake form
+            const nameInput = $('intake-name');
+            const userName = '{{ user.name if user else "" }}';
+            if (nameInput) nameInput.value = userName;
+            $('intake-age').value = '';
+            $('intake-vision').value = '';
+            document.querySelectorAll('.intake-toggle').forEach(b => b.classList.remove('selected'));
+        }
+
+        function hideAllResults() {
+            processingSec.classList.add('hidden');
             resultsSec.classList.add('hidden');
             errorBanner.classList.add('hidden');
         }
 
+        /* ============================================================= */
+        /*  PATIENT INTAKE FORM                                           */
+        /* ============================================================= */
+        function setIntakeToggle(btn) {
+            const group = btn.parentElement;
+            group.querySelectorAll('.intake-toggle').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        function getPatientInfo() {
+            const name = $('intake-name') ? $('intake-name').value : '';
+            const age = $('intake-age').value;
+            const diabeticBtn = document.querySelector('#intake-diabetic .intake-toggle.selected');
+            const htBtn = document.querySelector('#intake-hypertension .intake-toggle.selected');
+            const vision = $('intake-vision').value;
+
+            return {
+                name: name || '',
+                age: age || '',
+                diabetic: diabeticBtn ? diabeticBtn.dataset.value : '',
+                hypertension: htBtn ? htBtn.dataset.value : '',
+                vision_issues: vision || '',
+            };
+        }
+
+        /* ============================================================= */
+        /*  STEP PROGRESS                                                 */
+        /* ============================================================= */
+        function setStep(num) {
+            for (let i = 1; i <= 3; i++) {
+                const circle = $(`step-${i}`);
+                circle.classList.remove('active', 'completed');
+                if (i < num) circle.classList.add('completed');
+                else if (i === num) circle.classList.add('active');
+            }
+            for (const [from, to] of [[1, 2], [2, 3]]) {
+                const line = $(`line-${from}-${to}`);
+                if (from < num) line.classList.add('completed');
+                else line.classList.remove('completed');
+            }
+        }
+
+        /* ============================================================= */
+        /*  PROCESSING ANIMATION                                          */
+        /* ============================================================= */
+        async function animateProcessing() {
+            processingSec.classList.remove('hidden');
+            for (let i = 1; i <= 4; i++) {
+                await sleep(600);
+                const step = $(`proc-step-${i}`);
+                step.classList.add('done');
+                step.querySelector('i').className = 'fas fa-check-circle';
+                if (i < 4) {
+                    const next = $(`proc-step-${i + 1}`);
+                    next.classList.add('active');
+                    next.querySelector('i').className = 'fas fa-circle-notch fa-spin';
+                }
+            }
+            await sleep(300);
+        }
+
+        function resetProcessing() {
+            for (let i = 1; i <= 4; i++) {
+                const step = $(`proc-step-${i}`);
+                step.classList.remove('done', 'active');
+                const icons = ['fa-check-circle', 'fa-circle-notch', 'fa-circle', 'fa-circle'];
+                step.querySelector('i').className = `fas ${icons[i - 1]}`;
+            }
+            $('proc-step-1').classList.add('active');
+        }
+
+        /* ============================================================= */
+        /*  MAIN ANALYSIS FLOW                                            */
+        /* ============================================================= */
         analyzeBtn.addEventListener('click', async () => {
             if (!selectedFile) return;
+
             analyzeBtn.disabled = true;
             spinner.classList.remove('hidden');
-            analyzeBtn.querySelector('.btn-text').textContent = 'Analyzing…';
-            errorBanner.classList.add('hidden');
-            resultsSec.classList.add('hidden');
+            analyzeBtn.querySelector('.btn-text').innerHTML = '<i class="fas fa-cog fa-spin"></i> Analyzing…';
 
+            hideAllResults();
+            resetProcessing();
+            setStep(2);
+
+            const patient = getPatientInfo();
             const formData = new FormData();
             formData.append('file', selectedFile);
+            if (patient.age) formData.append('age', patient.age);
+            if (patient.diabetic) formData.append('diabetic', patient.diabetic);
+            if (patient.hypertension) formData.append('hypertension', patient.hypertension);
+            if (patient.vision_issues) formData.append('vision_issues', patient.vision_issues);
+
+            // Start processing animation
+            const animPromise = animateProcessing();
 
             try {
-                const res = await fetch('/predict', { method: 'POST', body: formData });
-                if (!res.ok) throw new Error(`Server error ${res.status}`);
+                const res = await fetch('/predict/initial', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `Server error ${res.status}`);
+                }
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
+
+                // Check retina validation from quality check
+                const qc = data.quality_check || {};
+                if (qc.reason && qc.reason === 'UNGRADABLE' && !qc.optic_disc_detected) {
+                    // Might not be a valid retinal image — show validation hint
+                }
+
+                assessmentData = data;
+
+                // Save scan to DB (fire-and-forget)
+                _saveScanToDb(data, patient);
+
+                // Wait for animation to finish
+                await animPromise;
+                await sleep(300);
+
+                processingSec.classList.add('hidden');
+                setStep(3);
                 renderResults(data);
+                showToast('Screening complete!', 'success');
+
             } catch (err) {
-                errorMsg.textContent = err.message;
-                errorBanner.classList.remove('hidden');
+                await animPromise;
+                processingSec.classList.add('hidden');
+                showToast(err.message, 'error');
             } finally {
                 analyzeBtn.disabled = false;
                 spinner.classList.add('hidden');
-                analyzeBtn.querySelector('.btn-text').textContent = 'Analyze Image';
+                analyzeBtn.querySelector('.btn-text').innerHTML = '<i class="fas fa-microscope"></i> Begin Screening';
             }
         });
 
-        function renderResults(data) {
-            resultsGrid.innerHTML = '';
-            const diseases = data.probabilities;
-            const detected = new Set(data.detected_diseases);
-
-            for (const [name, prob] of Object.entries(diseases)) {
-                const pct = (prob * 100).toFixed(1);
-                const isDetected = detected.has(name);
-                const card = document.createElement('div');
-                card.className = 'result-card' + (isDetected ? ' detected' : '');
-                card.innerHTML = `
-                    <div class="result-header">
-                        <span class="result-status">${isDetected ? '⚠️' : '✅'}</span>
-                        <h3>${name}</h3>
-                    </div>
-                    <div class="result-bar-track">
-                        <div class="result-bar" style="width: ${pct}%"></div>
-                    </div>
-                    <span class="result-pct">${pct}%</span>
-                `;
-                resultsGrid.appendChild(card);
+        /* ============================================================= */
+        /*  SAVE SCAN TO DATABASE                                         */
+        /* ============================================================= */
+        async function _saveScanToDb(data, patient) {
+            try {
+                const form = new FormData();
+                form.append('assessment', JSON.stringify(data));
+                form.append('patient_name', patient.name || '');
+                form.append('clinical_context', JSON.stringify({
+                    age: patient.age,
+                    diabetic: patient.diabetic,
+                    hypertension: patient.hypertension,
+                    vision_issues: patient.vision_issues,
+                }));
+                await fetch('/save-scan', { method: 'POST', body: form });
+            } catch (e) {
+                console.log('[save-scan] Could not save:', e.message);
             }
+        }
+
+        /* ============================================================= */
+        /*  RENDER: RESULTS                                               */
+        /* ============================================================= */
+        function renderResults(data) {
+            resultsSec.innerHTML = '';
             resultsSec.classList.remove('hidden');
+
+            const qc = data.quality_check || {};
+            const assessment = data.clinical_assessment || {};
+
+            // Quality check failed
+            if (qc.is_valid === false) {
+                resultsSec.innerHTML = `
+                    <div class="ungradable-banner">
+                        <div class="ungradable-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <h3>Image Not Suitable for Screening</h3>
+                        <p>${esc(data.final_decision || qc.reason || 'Quality check failed')}</p>
+                        <div class="quality-metrics" style="margin-top:1rem;">${renderQualityMetrics(qc)}</div>
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+
+            // ---- Patient Summary ---- //
+            if (assessment.patient_summary) {
+                html += `<div class="patient-summary-bar">
+                    <i class="fas fa-user"></i> ${esc(assessment.patient_summary)}
+                </div>`;
+            }
+
+            // ---- Urgency Banner ---- //
+            const urgency = assessment.urgency || 'routine';
+            if (urgency !== 'routine') {
+                const urgencyClass = urgency === 'urgent' ? 'urgent' : 'semi-urgent';
+                const urgencyText = urgency === 'urgent'
+                    ? 'Urgent — Immediate clinical evaluation recommended'
+                    : 'Follow-up — Clinical evaluation recommended';
+                html += `<div class="urgency-banner ${urgencyClass}">
+                    <i class="fas ${urgency === 'urgent' ? 'fa-exclamation-circle' : 'fa-clock'}"></i>
+                    ${urgencyText}
+                </div>`;
+            }
+
+            // ---- Key Findings Cards ---- //
+            const findings = assessment.key_findings || [];
+            if (findings.length === 0 && !assessment.uncertain) {
+                html += `
+                    <div class="no-findings-card">
+                        <i class="fas fa-check-circle no-findings-icon"></i>
+                        <h3>No Significant Findings</h3>
+                        <p>The AI screening did not detect any significant retinal abnormalities.</p>
+                        <p class="no-findings-note">Continue routine eye examinations as recommended for your age group.</p>
+                    </div>`;
+            } else if (assessment.uncertain) {
+                html += `
+                    <div class="uncertain-card">
+                        <i class="fas fa-question-circle uncertain-icon"></i>
+                        <h3>Uncertain Result</h3>
+                        <p>The AI model could not produce a confident prediction. This may be due to image quality or an unusual presentation.</p>
+                        <p class="uncertain-note">Clinical evaluation is strongly recommended.</p>
+                    </div>`;
+            } else {
+                html += '<h2 class="findings-title"><i class="fas fa-exclamation-triangle"></i> Key Findings</h2>';
+                html += '<div class="findings-grid">';
+                findings.forEach((f, i) => {
+                    const riskClass = f.risk_level === 'High Risk' ? 'high' : 'borderline';
+                    const riskIcon = f.risk_level === 'High Risk' ? 'fa-exclamation-circle' : 'fa-exclamation-triangle';
+                    html += `
+                        <div class="finding-card ${riskClass}" style="animation-delay: ${(i * 0.1).toFixed(2)}s">
+                            <div class="finding-header">
+                                <span class="risk-badge ${riskClass}">
+                                    <i class="fas ${riskIcon}"></i> ${esc(f.risk_level)}
+                                </span>
+                            </div>
+                            <h3 class="finding-disease">${esc(f.disease)}</h3>
+                            <p class="finding-desc">${esc(f.description || '')}</p>
+                            ${f.supporting_evidence && f.supporting_evidence.length ? `
+                                <div class="finding-evidence supporting">
+                                    <strong><i class="fas fa-check"></i> Supporting:</strong>
+                                    ${f.supporting_evidence.map(e => `<span>${esc(e)}</span>`).join('')}
+                                </div>` : ''}
+                            ${f.contradicting_evidence && f.contradicting_evidence.length ? `
+                                <div class="finding-evidence contradicting">
+                                    <strong><i class="fas fa-exclamation-triangle"></i> Caution:</strong>
+                                    ${f.contradicting_evidence.map(e => `<span>${esc(e)}</span>`).join('')}
+                                </div>` : ''}
+                            ${f.patient_context && f.patient_context.length ? `
+                                <div class="finding-context">
+                                    <i class="fas fa-user"></i> ${f.patient_context.map(c => esc(c)).join('; ')}
+                                </div>` : ''}
+                            <div class="finding-recommendation">
+                                <i class="fas fa-stethoscope"></i> ${esc(f.recommendation || '')}
+                            </div>
+                        </div>`;
+                });
+                html += '</div>';
+            }
+
+            // ---- Clinical Summary (LLM-enhanced) ---- //
+            if (assessment.explanation) {
+                const templateRendered = typeof marked !== 'undefined' && marked.parse
+                    ? marked.parse(assessment.explanation)
+                    : esc(assessment.explanation).replace(/\n/g, '<br>');
+                html += `
+                    <div class="explanation-card" id="clinical-summary-card">
+                        <h3><i class="fas fa-file-alt"></i> Clinical Summary
+                            <span class="summary-provider-badge" id="summary-provider-badge">
+                                <i class="fas fa-circle-notch fa-spin"></i> Generating AI summary...
+                            </span>
+                        </h3>
+                        <div class="explanation-text" id="clinical-summary-text">${templateRendered}</div>
+                    </div>`;
+            }
+
+            // ---- Action Buttons (includes PDF Download) ---- //
+            html += `<div class="action-buttons">
+                <button class="btn-details" onclick="toggleDetails()">
+                    <i class="fas fa-search-plus"></i> View Details
+                </button>
+                <button class="btn-download-pdf" onclick="downloadPDF()">
+                    <i class="fas fa-file-pdf"></i> Download Report
+                </button>
+                <button class="btn-new-scan" onclick="resetUI()">
+                    <i class="fas fa-redo"></i> New Scan
+                </button>
+            </div>`;
+
+            // ---- Details Panel (hidden by default) ---- //
+            html += `<div class="details-panel hidden" id="details-panel">
+                ${renderDetailsPanel(data)}
+            </div>`;
+
+            // ---- Post-Prediction Questionnaire ---- //
+            html += renderQuestionnaire();
+
+            // ---- Understand Your Results (always visible) ---- //
+            html += `<div class="qa-panel" id="qa-panel">
+                <div class="qa-panel-header">
+                    <i class="fas fa-comment-medical"></i>
+                    <h3>Understand Your Results</h3>
+                    <span class="qa-panel-subtitle">Select a question or type your own to learn more about your screening results</span>
+                </div>
+
+                <div class="qa-suggested-questions">
+                    <p class="qa-label"><i class="fas fa-lightbulb"></i> Common Questions</p>
+                    <div class="qa-suggestion-grid">
+                        <button class="qa-suggestion-btn" onclick="askQuestion('What does this result mean?')">
+                            <i class="fas fa-question-circle"></i> What does this result mean?
+                        </button>
+                        <button class="qa-suggestion-btn" onclick="askQuestion('How serious is this?')">
+                            <i class="fas fa-exclamation-circle"></i> How serious is this?
+                        </button>
+                        <button class="qa-suggestion-btn" onclick="askQuestion('What should I do next?')">
+                            <i class="fas fa-directions"></i> What should I do next?
+                        </button>
+                        <button class="qa-suggestion-btn" onclick="askQuestion('Should I consult a doctor?')">
+                            <i class="fas fa-user-md"></i> Should I consult a doctor?
+                        </button>
+                    </div>
+                </div>
+
+                <div class="qa-custom-input">
+                    <p class="qa-label"><i class="fas fa-keyboard"></i> Or ask your own question</p>
+                    <div class="qa-input-row">
+                        <input type="text" id="qa-custom-question" placeholder="Ask about your results…"
+                               onkeydown="if(event.key==='Enter') submitCustomQuestion()" />
+                        <button class="qa-submit-btn" id="qa-submit-btn" onclick="submitCustomQuestion()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="qa-response-area hidden" id="qa-response-area">
+                    <div class="qa-loading hidden" id="qa-loading">
+                        <div class="qa-loading-spinner"></div>
+                        <span>Generating response…</span>
+                    </div>
+                    <div class="qa-response-content" id="qa-response-content"></div>
+                </div>
+            </div>`;
+
+            resultsSec.innerHTML = html;
+            resultsSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Auto-fetch LLM-powered summary to replace the template
+            _fetchLLMSummary();
+        }
+
+        /* ============================================================= */
+        /*  POST-PREDICTION QUESTIONNAIRE                                 */
+        /* ============================================================= */
+        function renderQuestionnaire() {
+            return `
+            <div class="questionnaire-panel" id="questionnaire-panel">
+                <div class="questionnaire-header">
+                    <i class="fas fa-clipboard-list"></i>
+                    <h3>Symptom Assessment</h3>
+                    <span class="questionnaire-subtitle">Help us understand your symptoms (does not change AI results)</span>
+                </div>
+                <div class="questionnaire-body" id="questionnaire-body">
+                    <div class="q-item">
+                        <span class="q-text">Is your vision blurry or hazy?</span>
+                        <div class="q-options" data-q="blurred_vision">
+                            <button class="q-opt" data-val="yes" onclick="selectQOpt(this)"><i class="fas fa-check"></i> Yes</button>
+                            <button class="q-opt" data-val="no" onclick="selectQOpt(this)"><i class="fas fa-times"></i> No</button>
+                        </div>
+                    </div>
+                    <div class="q-item">
+                        <span class="q-text">Do you have trouble seeing from the sides of your eyes?</span>
+                        <div class="q-options" data-q="peripheral_loss">
+                            <button class="q-opt" data-val="yes" onclick="selectQOpt(this)"><i class="fas fa-check"></i> Yes</button>
+                            <button class="q-opt" data-val="no" onclick="selectQOpt(this)"><i class="fas fa-times"></i> No</button>
+                        </div>
+                    </div>
+                    <div class="q-item">
+                        <span class="q-text">Do you see spots, floaters, or flashes of light?</span>
+                        <div class="q-options" data-q="floaters_flashes">
+                            <button class="q-opt" data-val="yes" onclick="selectQOpt(this)"><i class="fas fa-check"></i> Yes</button>
+                            <button class="q-opt" data-val="no" onclick="selectQOpt(this)"><i class="fas fa-times"></i> No</button>
+                        </div>
+                    </div>
+                    <div class="q-item">
+                        <span class="q-text">Is it hard to see clearly at night or in dim light?</span>
+                        <div class="q-options" data-q="night_difficulty">
+                            <button class="q-opt" data-val="yes" onclick="selectQOpt(this)"><i class="fas fa-check"></i> Yes</button>
+                            <button class="q-opt" data-val="no" onclick="selectQOpt(this)"><i class="fas fa-times"></i> No</button>
+                        </div>
+                    </div>
+                    <div class="q-item">
+                        <span class="q-text">Has a doctor told you that you have diabetes or high blood pressure?</span>
+                        <div class="q-options" data-q="diabetes_hypertension">
+                            <button class="q-opt" data-val="yes" onclick="selectQOpt(this)"><i class="fas fa-check"></i> Yes</button>
+                            <button class="q-opt" data-val="no" onclick="selectQOpt(this)"><i class="fas fa-times"></i> No</button>
+                            <button class="q-opt" data-val="both" onclick="selectQOpt(this)"><i class="fas fa-check-double"></i> Both</button>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-questionnaire-submit" id="q-submit-btn" onclick="submitQuestionnaire()">
+                    <i class="fas fa-paper-plane"></i> Submit Symptom Assessment
+                </button>
+                <div id="questionnaire-insight-container" class="hidden"></div>
+            </div>`;
+        }
+
+        function selectQOpt(btn) {
+            const group = btn.parentElement;
+            group.querySelectorAll('.q-opt').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        function submitQuestionnaire() {
+            if (!assessmentData) return;
+
+            // Collect answers
+            const answers = {};
+            document.querySelectorAll('.q-options').forEach(group => {
+                const q = group.dataset.q;
+                const sel = group.querySelector('.q-opt.selected');
+                answers[q] = sel ? sel.dataset.val : null;
+            });
+
+            // Check if any answered
+            const answered = Object.values(answers).filter(v => v !== null);
+            if (answered.length === 0) {
+                showToast('Please answer at least one question.', 'warning');
+                return;
+            }
+
+            // Symptom consistency logic
+            const detectedDiseases = (assessmentData.clinical_assessment?.key_findings || [])
+                .map(f => f.disease?.toLowerCase() || '');
+
+            const symptomMap = {
+                blurred_vision: ['cataract', 'diabetes', 'myopia', 'diabetic retinopathy'],
+                peripheral_loss: ['glaucoma'],
+                floaters_flashes: [],  // general urgency flag
+                night_difficulty: ['cataract', 'glaucoma'],
+                diabetes_hypertension: ['diabetes', 'hypertension', 'diabetic retinopathy', 'hypertensive retinopathy'],
+            };
+
+            let matchedSymptoms = 0;
+            let reportedSymptoms = 0;
+            let floatersReported = false;
+
+            const symptomLabels = {
+                blurred_vision: "Blurry or hazy vision",
+                peripheral_loss: "Difficulty seeing from the sides",
+                floaters_flashes: "Spots, floaters, or flashes",
+                night_difficulty: "Difficulty in dim light",
+                diabetes_hypertension: "Diabetes or high blood pressure"
+            };
+
+            let symptomBreakdown = [];
+
+            for (const [symptom, value] of Object.entries(answers)) {
+                if (value === 'yes' || value === 'both') {
+                    reportedSymptoms++;
+                    if (symptom === 'floaters_flashes') {
+                        floatersReported = true;
+                    }
+                    const matchDiseases = symptomMap[symptom] || [];
+                    let hasMatch = false;
+                    for (const disease of matchDiseases) {
+                        if (detectedDiseases.some(d => d.includes(disease))) {
+                            hasMatch = true;
+                        }
+                    }
+                    if (hasMatch) {
+                        matchedSymptoms++;
+                        symptomBreakdown.push(`<li><i class="fas fa-check-circle" style="color: var(--success); margin-right: 0.4rem;"></i> ${symptomLabels[symptom]} (Consistent with findings)</li>`);
+                    } else {
+                        symptomBreakdown.push(`<li><i class="fas fa-info-circle" style="color: var(--warning); margin-right: 0.4rem;"></i> ${symptomLabels[symptom]} (No direct finding)</li>`);
+                    }
+                }
+            }
+
+            let caseType = 'minimal';
+            let statement = '';
+
+            if (reportedSymptoms === 0) {
+                caseType = 'minimal';
+                statement = 'No additional symptoms reported. Continue with routine follow-up as recommended.';
+            } else if (matchedSymptoms > 0 && matchedSymptoms === reportedSymptoms) {
+                caseType = 'consistent';
+                statement = 'Reported symptoms are consistent with detected condition.';
+            } else if (matchedSymptoms > 0 && matchedSymptoms < reportedSymptoms) {
+                caseType = 'partial';
+                statement = 'Some symptoms align with findings. Further evaluation recommended.';
+            } else {
+                caseType = 'minimal';
+                statement = 'Symptoms are minimal; clinical confirmation recommended.';
+            }
+
+            if (floatersReported) {
+                statement += ' Note: Floaters or flashes of light may indicate urgent conditions. Please consult an ophthalmologist promptly.';
+            }
+
+            const badgeText = caseType === 'consistent' ? 'Consistent Match' : caseType === 'partial' ? 'Partial Match' : 'Symptom Review';
+            const iconClass = caseType === 'consistent' ? 'fa-check-circle' : caseType === 'partial' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+
+            const cardHtml = `
+                <div class="q-insight-card ${caseType}">
+                    <div class="q-insight-badge ${caseType}">
+                        <i class="fas ${iconClass}"></i> ${badgeText}
+                    </div>
+                    <div class="q-insight-body">
+                        <p class="q-insight-statement"><strong>${statement}</strong></p>
+                        ${reportedSymptoms > 0 ? `<ul class="q-symptom-breakdown">${symptomBreakdown.join('')}</ul>` : ''}
+                    </div>
+                </div>
+            `;
+
+            // Display insight
+            const insightEl = $('questionnaire-insight-container');
+            insightEl.innerHTML = cardHtml;
+            insightEl.classList.remove('hidden');
+
+            // Disable form
+            $('q-submit-btn').disabled = true;
+            $('q-submit-btn').innerHTML = '<i class="fas fa-check"></i> Submitted';
+            document.querySelectorAll('.q-opt').forEach(b => b.disabled = true);
+
+            // Store questionnaire data for PDF
+            assessmentData._questionnaire = {
+                answers: answers,
+                consistency_statement: statement,
+                case_type: caseType,
+                selected_symptoms: symptomBreakdown
+            };
+
+            insightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        /* ============================================================= */
+        /*  PDF DOWNLOAD                                                  */
+        /* ============================================================= */
+        async function downloadPDF() {
+            if (!assessmentData) {
+                showToast('No assessment data available.', 'warning');
+                return;
+            }
+
+            const patient = getPatientInfo();
+            const formData = new FormData();
+            formData.append('assessment', JSON.stringify(assessmentData));
+            formData.append('patient_name', patient.name || '');
+            formData.append('patient_age', patient.age || '');
+            formData.append('questionnaire', JSON.stringify(assessmentData._questionnaire || {}));
+
+            // Grad-CAM path
+            const gcUrl = assessmentData.gradcam_url || '';
+            formData.append('gradcam_path', gcUrl);
+
+            try {
+                showToast('Generating PDF report...', 'info');
+                const res = await fetch('/generate-pdf', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'PDF generation failed');
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'RetinAI_Report.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                showToast('Report downloaded!', 'success');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        /* ============================================================= */
+        /*  RENDER: DETAILS PANEL                                         */
+        /* ============================================================= */
+        function renderDetailsPanel(data) {
+            let html = '<h3><i class="fas fa-microscope"></i> Detailed Analysis</h3>';
+
+            // Tab navigation
+            html += `
+                <div class="results-tabs">
+                    <nav class="results-tab-nav">
+                        <button class="results-tab-btn active" data-tab="dtab-predictions" onclick="switchTab(this)">
+                            <i class="fas fa-chart-bar"></i> All Predictions
+                        </button>
+                        <button class="results-tab-btn" data-tab="dtab-clinical" onclick="switchTab(this)">
+                            <i class="fas fa-vials"></i> Clinical Features
+                        </button>
+                        <button class="results-tab-btn" data-tab="dtab-heatmaps" onclick="switchTab(this)">
+                            <i class="fas fa-fire"></i> Heatmaps
+                        </button>
+                        <button class="results-tab-btn" data-tab="dtab-flags" onclick="switchTab(this)">
+                            <i class="fas fa-flag"></i> Validation
+                        </button>
+                    </nav>
+                    <div class="results-tab-content">
+                        <div class="results-tab-pane active" id="dtab-predictions">
+                            ${renderAllPredictions(data)}
+                        </div>
+                        <div class="results-tab-pane" id="dtab-clinical">
+                            ${renderClinicalFeatures(data.clinical_features || {})}
+                        </div>
+                        <div class="results-tab-pane" id="dtab-heatmaps">
+                            ${renderGradcam(data)}
+                        </div>
+                        <div class="results-tab-pane" id="dtab-flags">
+                            ${renderFlags(data.clinical_flags || [])}
+                        </div>
+                    </div>
+                </div>`;
+            return html;
+        }
+
+        function switchTab(btn) {
+            const tabId = btn.dataset.tab;
+            const panel = btn.closest('.results-tabs');
+            panel.querySelectorAll('.results-tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            panel.querySelectorAll('.results-tab-pane').forEach(p => p.classList.remove('active'));
+            const pane = document.getElementById(tabId);
+            if (pane) pane.classList.add('active');
+        }
+
+        /* ---- All Predictions Table ---- */
+        function renderAllPredictions(data) {
+            const assessment = data.clinical_assessment || {};
+            const allFindings = assessment.all_findings || [];
+            const confs = data.confidence || {};
+            if (!allFindings.length) return '<p class="no-data">No predictions available.</p>';
+
+            let rows = '';
+            allFindings.forEach((f, i) => {
+                const pct = (f.probability * 100).toFixed(1);
+                const riskClass = f.risk_level === 'High Risk' ? 'high' :
+                    f.risk_level === 'Borderline' ? 'borderline' : 'low';
+                rows += `
+                    <div class="pred-row ${riskClass}" style="animation-delay: ${(i * 0.05).toFixed(2)}s">
+                        <span class="pred-disease">${esc(f.disease)}</span>
+                        <div class="pred-bar-wrap">
+                            <div class="pred-bar" style="width: 0%" data-width="${pct}"></div>
+                        </div>
+                        <span class="pred-pct">${pct}%</span>
+                        <span class="pred-risk-badge ${riskClass}">${esc(f.risk_level)}</span>
+                    </div>`;
+            });
+
+            setTimeout(() => {
+                document.querySelectorAll('.pred-bar[data-width]').forEach(bar => {
+                    requestAnimationFrame(() => bar.style.width = bar.dataset.width + '%');
+                });
+            }, 200);
+
+            return `<div class="section-block"><div class="pred-table">${rows}</div></div>`;
+        }
+
+        /* ---- Clinical Features ---- */
+        function renderClinicalFeatures(feats) {
+            if (!Object.keys(feats).length) return '<p class="no-data">No clinical features extracted.</p>';
+
+            const sections = [
+                {
+                    key: 'dr', title: 'Diabetic Retinopathy', icon: 'fa-tint', color: 'dr',
+                    fields: [['Exudates', 'exudate_count'], ['Hemorrhages', 'hemorrhage_count'],
+                    ['Microaneurysms', 'microaneurysm_count'], ['Lesion Area', 'lesion_area']]
+                },
+                {
+                    key: 'glaucoma', title: 'Glaucoma', icon: 'fa-eye', color: 'gl',
+                    fields: [['Cup/Disc Ratio', 'cdr']]
+                },
+                {
+                    key: 'myopia', title: 'Myopia', icon: 'fa-search', color: 'my',
+                    fields: [['Brightness', 'brightness'], ['Texture Var.', 'texture_variance'],
+                    ['Vessel Vis.', 'vessel_visibility'], ['Edge Density', 'edge_density']]
+                },
+                {
+                    key: 'cataract', title: 'Cataract', icon: 'fa-low-vision', color: 'cat',
+                    fields: [['Blur Score', 'blur_score'], ['Contrast', 'contrast_ratio'],
+                    ['Haze Index', 'haze_index']]
+                },
+                {
+                    key: 'amd', title: 'AMD', icon: 'fa-bullseye', color: 'amd',
+                    fields: [['Drusen Count', 'drusen_count'], ['Macular Irreg.', 'macular_irregularity']]
+                },
+                {
+                    key: 'hypertension', title: 'Hypertension', icon: 'fa-heartbeat', color: 'ht',
+                    fields: [['AV Ratio', 'av_ratio'], ['Vessel Tortuosity', 'vessel_tortuosity']]
+                },
+            ];
+
+            let html = '<div class="clinical-grid">';
+            sections.forEach(sec => {
+                const data = feats[sec.key] || {};
+                let items = '';
+                sec.fields.forEach(([label, key]) => {
+                    let val = data[key];
+                    if (val == null) val = 'N/A';
+                    else if (typeof val === 'number') val = val < 0.01 && val > 0 ? val.toFixed(6) : val.toFixed(val < 1 ? 4 : 2);
+                    items += `<div class="clinical-item">
+                        <span>${esc(label)}</span>
+                        <span class="val">${esc(String(val))}</span>
+                    </div>`;
+                });
+                html += `
+                    <div class="clinical-card">
+                        <div class="clinical-card-header">
+                            <i class="fas ${sec.icon} clinical-card-icon ${sec.color}"></i>
+                            <h4>${sec.title}</h4>
+                        </div>
+                        ${items}
+                    </div>`;
+            });
+            html += '</div>';
+            return `<div class="section-block">${html}</div>`;
+        }
+
+        /* ---- Grad-CAM ---- */
+        function renderGradcam(data) {
+            const paths = data.gradcam_paths || {};
+            const entries = Object.entries(paths).filter(([, v]) => v);
+            if (!entries.length) return '<p class="no-data"><i class="fas fa-info-circle"></i> No heatmaps generated.</p>';
+
+            let gallery = '';
+            for (const [disease, url] of entries) {
+                gallery += `
+                    <div class="gc-item">
+                        <div class="gc-comparison" data-disease="${esc(disease)}">
+                            <div class="gc-img-wrap">
+                                <img src="${esc(url)}" alt="Grad-CAM — ${esc(disease)}" loading="lazy" class="gc-heatmap" />
+                                <div class="gc-original-wrap" style="clip-path: inset(0 50% 0 0);">
+                                    <img src="${previewImg.src}" alt="Original" class="gc-original" />
+                                </div>
+                                <div class="gc-slider-handle" title="Drag to compare">
+                                    <div class="gc-slider-line"></div>
+                                    <div class="gc-slider-knob"><i class="fas fa-arrows-alt-h"></i></div>
+                                </div>
+                            </div>
+                            <div class="gc-label-row">
+                                <span class="gc-label-left">Original</span>
+                                <span class="gc-label-center">${esc(disease)}</span>
+                                <span class="gc-label-right">Heatmap</span>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            setTimeout(initComparisonSliders, 200);
+
+            return `
+                <div class="section-block">
+                    <div class="gc-explanation-banner">
+                        <div class="gc-explanation-text">
+                            <i class="fas fa-info-circle"></i>
+                            Highlighted areas show where the AI focused when making its prediction.
+                        </div>
+                        <div class="gc-tooltip-wrap">
+                            <button class="gc-tooltip-btn" title="More info">?</button>
+                            <div class="gc-tooltip-content">
+                                Brighter regions indicate higher importance in the model's decision.
+                            </div>
+                        </div>
+                    </div>
+                    <p class="gc-instructions"><i class="fas fa-hand-pointer"></i> Drag the slider to compare original vs. heatmap</p>
+                    <div class="gradcam-gallery">${gallery}</div>
+                </div>`;
+        }
+
+        function initComparisonSliders() {
+            document.querySelectorAll('.gc-comparison').forEach(comp => {
+                const wrap = comp.querySelector('.gc-img-wrap');
+                const origWrap = comp.querySelector('.gc-original-wrap');
+                const handle = comp.querySelector('.gc-slider-handle');
+                if (!wrap || !origWrap || !handle) return;
+
+                let dragging = false;
+                function updateSlider(clientX) {
+                    const rect = wrap.getBoundingClientRect();
+                    let pct = ((clientX - rect.left) / rect.width) * 100;
+                    pct = Math.max(0, Math.min(100, pct));
+                    origWrap.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+                    handle.style.left = pct + '%';
+                }
+
+                handle.addEventListener('mousedown', () => dragging = true);
+                handle.addEventListener('touchstart', () => dragging = true, { passive: true });
+                window.addEventListener('mouseup', () => dragging = false);
+                window.addEventListener('touchend', () => dragging = false);
+                window.addEventListener('mousemove', e => { if (dragging) updateSlider(e.clientX); });
+                window.addEventListener('touchmove', e => { if (dragging) updateSlider(e.touches[0].clientX); }, { passive: true });
+                wrap.addEventListener('click', e => updateSlider(e.clientX));
+            });
+        }
+
+        /* ---- Clinical Flags ---- */
+        function renderFlags(flags) {
+            if (!flags.length) return '<p class="no-data"><i class="fas fa-info-circle"></i> No validation flags triggered.</p>';
+
+            let items = '';
+            flags.forEach((f, i) => {
+                const cls = f.flag_type === 'supporting' ? 'supporting' :
+                    f.flag_type === 'contradicting' ? 'contradicting' : 'info';
+                const icon = cls === 'supporting' ? 'fa-check-circle' :
+                    cls === 'contradicting' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+
+                items += `
+                    <div class="flag-item ${cls}" style="animation-delay: ${(i * 0.06).toFixed(2)}s">
+                        <div class="flag-icon"><i class="fas ${icon}"></i></div>
+                        <div class="flag-body">
+                            <div class="flag-disease">${esc(f.disease || '')}</div>
+                            <div class="flag-text">${esc(f.evidence || '')}</div>
+                            ${f.literature_ref ? `<div class="flag-ref"><i class="fas fa-book"></i> ${esc(f.literature_ref)}</div>` : ''}
+                        </div>
+                    </div>`;
+            });
+
+            return `<div class="section-block">${items}</div>`;
+        }
+
+        /* ============================================================= */
+        /*  AUTO-FETCH LLM SUMMARY                                        */
+        /* ============================================================= */
+
+        /**
+         * Pre-process LLM text to ensure section-based format renders
+         * correctly through marked.parse(). Converts plain "Section:"
+         * headers into markdown ## headers.
+         */
+        function formatLLMText(text) {
+            if (!text) return text;
+
+            // Convert section labels (with or without bold markdown) into ## headers
+            const sectionPattern = /^(\*{0,2})(Summary|Key Findings|What This Means|Next Steps)(\*{0,2})\s*:?\s*$/gim;
+            text = text.replace(sectionPattern, '\n## $2\n');
+
+            // Strip any disclaimer text the LLM may have included
+            text = text.replace(/\n*-{2,}\n*\*?This is an AI-generated screening explanation.*?professional\.?\*?/gi, '');
+            text = text.replace(/\*?This is an AI-generated screening explanation.*?professional\.?\*?/gi, '');
+
+            // Clean up excessive blank lines
+            text = text.replace(/\n{3,}/g, '\n\n');
+
+            return text.trim();
+        }
+
+        async function _fetchLLMSummary() {
+            if (!assessmentData || !assessmentData.clinical_assessment) return;
+
+            const badge = $('summary-provider-badge');
+            const textEl = $('clinical-summary-text');
+            if (!badge || !textEl) return;
+
+            const formData = new FormData();
+            formData.append('assessment', JSON.stringify(assessmentData.clinical_assessment));
+            // No user_question → triggers summary mode in /explain
+
+            try {
+                const res = await fetch('/explain', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error('API error');
+                const data = await res.json();
+
+                const text = data.llm_explanation || '';
+                const isLLM = data.is_llm_generated;
+                const provider = data.provider || 'unknown';
+
+                if (text && text.trim().length > 30) {
+                    const processed = isLLM ? formatLLMText(text) : text;
+                    const rendered = typeof marked !== 'undefined' && marked.parse
+                        ? marked.parse(processed)
+                        : esc(processed).replace(/\n/g, '<br>');
+                    textEl.innerHTML = rendered;
+
+                    if (isLLM) {
+                        badge.innerHTML = `<i class="fas fa-sparkles"></i> AI Summary`;
+                        badge.className = 'summary-provider-badge llm-active';
+                    } else {
+                        badge.innerHTML = '<i class="fas fa-file-alt"></i> Template';
+                        badge.className = 'summary-provider-badge template-active';
+                    }
+                } else {
+                    // LLM returned nothing useful — keep template text
+                    badge.innerHTML = '<i class="fas fa-file-alt"></i> Template';
+                    badge.className = 'summary-provider-badge template-active';
+                }
+            } catch (err) {
+                console.error('[LLM Summary] Error:', err);
+                // Keep the template text that's already displayed
+                badge.innerHTML = '<i class="fas fa-file-alt"></i> Template';
+                badge.className = 'summary-provider-badge template-active';
+            }
+        }
+
+        /* ============================================================= */
+        /*  VIEW DETAILS / UNDERSTAND YOUR RESULTS (Q&A)                  */
+        /* ============================================================= */
+        function toggleDetails() {
+            const panel = $('details-panel');
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Trigger bar animations
+                setTimeout(() => {
+                    document.querySelectorAll('.pred-bar[data-width]').forEach(bar => {
+                        requestAnimationFrame(() => bar.style.width = bar.dataset.width + '%');
+                    });
+                }, 100);
+            }
+        }
+
+        function askQuestion(question) {
+            if (!assessmentData || !assessmentData.clinical_assessment) {
+                showToast('No assessment data available.', 'warning');
+                return;
+            }
+            _sendQuestion(question);
+        }
+
+        function submitCustomQuestion() {
+            const input = $('qa-custom-question');
+            if (!input) return;
+            const question = input.value.trim();
+            if (!question) {
+                showToast('Please enter a question.', 'warning');
+                return;
+            }
+            _sendQuestion(question);
+            input.value = '';
+        }
+
+        async function _sendQuestion(question) {
+            if (!assessmentData || !assessmentData.clinical_assessment) {
+                showToast('No assessment data available.', 'warning');
+                return;
+            }
+
+            const responseArea = $('qa-response-area');
+            const loading = $('qa-loading');
+            const content = $('qa-response-content');
+
+            responseArea.classList.remove('hidden');
+            loading.classList.remove('hidden');
+            content.innerHTML = '';
+
+            // Disable suggestion buttons while loading
+            document.querySelectorAll('.qa-suggestion-btn').forEach(b => b.disabled = true);
+            const submitBtn = $('qa-submit-btn');
+            if (submitBtn) submitBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('assessment', JSON.stringify(assessmentData.clinical_assessment));
+            formData.append('user_question', question);
+
+            try {
+                const res = await fetch('/explain', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error('Explanation service unavailable');
+                const data = await res.json();
+
+                const text = data.answer || data.llm_explanation || 'No explanation available.';
+                const isLLM = data.is_llm_generated;
+                const processed = isLLM ? formatLLMText(text) : text;
+                const rendered = typeof marked !== 'undefined' && marked.parse ? marked.parse(processed) : esc(processed).replace(/\n/g, '<br>');
+
+                content.innerHTML = `
+                    <div class="qa-question-echo">
+                        <i class="fas fa-user"></i>
+                        <span>${esc(question)}</span>
+                    </div>
+                    <div class="qa-answer-wrap">
+                        <div class="qa-answer-badge">
+                            <i class="fas ${isLLM ? 'fa-robot' : 'fa-file-alt'}"></i>
+                            ${isLLM ? 'AI-Generated Response' : 'Template-Based Response'}
+                        </div>
+                        <div class="qa-answer-text">${rendered}</div>
+                    </div>`;
+
+            } catch (err) {
+                content.innerHTML = `<p class="no-data"><i class="fas fa-exclamation-circle"></i> ${esc(err.message)}</p>`;
+            } finally {
+                loading.classList.add('hidden');
+                document.querySelectorAll('.qa-suggestion-btn').forEach(b => b.disabled = false);
+                if (submitBtn) submitBtn.disabled = false;
+            }
+
+            responseArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        /* ============================================================= */
+        /*  QUALITY METRICS HELPER                                        */
+        /* ============================================================= */
+        function renderQualityMetrics(qc) {
+            let m = '';
+            if (qc.blur_score != null) m += metricCard('Blur Score', qc.blur_score, 'fa-eye');
+            if (qc.brightness_mean != null) m += metricCard('Brightness', qc.brightness_mean, 'fa-sun');
+            if (qc.contrast_std != null) m += metricCard('Contrast', qc.contrast_std, 'fa-adjust');
+            if (qc.optic_disc_detected != null)
+                m += metricCard('Optic Disc', qc.optic_disc_detected ? 'Detected ✓' : 'Not Found', 'fa-dot-circle');
+            return m;
+        }
+
+        function metricCard(label, value, icon) {
+            const display = typeof value === 'number' ? value.toFixed(2) : String(value);
+            return `<div class="quality-metric">
+                <div class="metric-icon"><i class="fas ${icon}"></i></div>
+                <div class="metric-body">
+                    <div class="metric-label">${esc(label)}</div>
+                    <div class="metric-value">${esc(display)}</div>
+                </div>
+            </div>`;
+        }
+
+        /* ============================================================= */
+        /*  UTILITIES                                                     */
+        /* ============================================================= */
+        function esc(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function sleep(ms) {
+            return new Promise(r => setTimeout(r, ms));
         }
     </script>
 </body>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="RetinAI — AI-powered retinal disease screening with clinical decision support." />
+    <title>{% block title %}RetinAI{% endblock %}</title>
+
+    <!-- Vendor: Bootstrap 5.3.0 -->
+    <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css" />
+    <!-- Vendor: Font Awesome 5.15.4 -->
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css" />
+    <!-- App Styles -->
+    <link rel="stylesheet" href="/static/style.css" />
+    <!-- Dashboard Styles -->
+    <link rel="stylesheet" href="/static/dashboard.css" />
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+    <!-- Particle Canvas Background -->
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- Top Navigation Bar -->
+    <nav class="dash-navbar" id="dash-navbar">
+        <div class="dash-navbar-inner">
+            <a href="{% if user %}/{{ user.role }}/dashboard{% else %}/login{% endif %}" class="dash-brand">
+                <div class="dash-logo-wrap">
+                    <svg class="dash-logo-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="eyeGradNav" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#00e5b0" />
+                                <stop offset="50%" stop-color="#00c2ff" />
+                                <stop offset="100%" stop-color="#7c6aff" />
+                            </linearGradient>
+                            <radialGradient id="irisGradNav" cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stop-color="#00e5b0" />
+                                <stop offset="60%" stop-color="#00849a" />
+                                <stop offset="100%" stop-color="#0c1220" />
+                            </radialGradient>
+                        </defs>
+                        <path d="M8,40 Q40,8 72,40 Q40,72 8,40 Z" fill="none" stroke="url(#eyeGradNav)"
+                            stroke-width="2.5" />
+                        <circle cx="40" cy="40" r="16" fill="url(#irisGradNav)" opacity="0.9" />
+                        <circle cx="40" cy="40" r="7" fill="#060a13" />
+                        <circle cx="35" cy="35" r="3" fill="rgba(255,255,255,0.6)" />
+                    </svg>
+                </div>
+                <div>
+                    <span class="dash-brand-name">RetinAI</span>
+                    <span class="dash-brand-tag">Clinical Screening</span>
+                </div>
+            </a>
+
+            <div class="dash-nav-links" id="dash-nav-links">
+                {% if user %}
+                    {% if user.role == 'patient' %}
+                        <a href="/patient/dashboard" class="dash-nav-link {% block nav_dashboard %}{% endblock %}">
+                            <i class="fas fa-th-large"></i> Dashboard
+                        </a>
+                        <a href="/patient/upload" class="dash-nav-link {% block nav_upload %}{% endblock %}">
+                            <i class="fas fa-upload"></i> Upload Scan
+                        </a>
+                    {% elif user.role == 'clinician' %}
+                        <a href="/clinician/dashboard" class="dash-nav-link {% block nav_clin_dash %}{% endblock %}">
+                            <i class="fas fa-th-large"></i> Dashboard
+                        </a>
+                        <a href="/clinician/cases" class="dash-nav-link {% block nav_cases %}{% endblock %}">
+                            <i class="fas fa-folder-open"></i> Cases
+                        </a>
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            <div class="dash-nav-right">
+                {% if user %}
+                    <div class="dash-user-info dash-hide-mobile">
+                        <div class="dash-user-avatar">
+                            <i class="fas fa-{% if user.role == 'clinician' %}user-md{% else %}user{% endif %}"></i>
+                        </div>
+                        <div class="dash-user-meta">
+                            <span class="dash-user-name">{{ user.name }}</span>
+                        </div>
+                    </div>
+                    <a href="/logout" class="dash-nav-btn" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </a>
+                {% endif %}
+                <button class="dash-nav-btn" id="theme-toggle" title="Toggle theme">
+                    <i class="fas fa-moon" id="theme-icon"></i>
+                </button>
+                {% if user %}
+                <button class="dash-nav-btn dash-hamburger" id="nav-hamburger" title="Menu" aria-label="Toggle navigation">
+                    <i class="fas fa-bars" id="hamburger-icon"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Mobile Nav Dropdown -->
+        {% if user %}
+        <div class="dash-mobile-nav" id="dash-mobile-nav">
+            <div class="dash-mobile-user">
+                <div class="dash-user-avatar">
+                    <i class="fas fa-{% if user.role == 'clinician' %}user-md{% else %}user{% endif %}"></i>
+                </div>
+                <div>
+                    <span class="dash-user-name">{{ user.name }}</span>
+                </div>
+            </div>
+            {% if user.role == 'patient' %}
+                <a href="/patient/dashboard" class="dash-mobile-link"><i class="fas fa-th-large"></i> Dashboard</a>
+                <a href="/patient/upload" class="dash-mobile-link"><i class="fas fa-upload"></i> Upload Scan</a>
+            {% elif user.role == 'clinician' %}
+                <a href="/clinician/dashboard" class="dash-mobile-link"><i class="fas fa-th-large"></i> Dashboard</a>
+                <a href="/clinician/cases" class="dash-mobile-link"><i class="fas fa-folder-open"></i> Cases</a>
+            {% endif %}
+            <a href="/logout" class="dash-mobile-link dash-mobile-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+        {% endif %}
+    </nav>
+
+    <!-- Main Content -->
+    <div class="dash-container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Footer -->
+    <footer class="dash-footer">
+        <div class="dash-footer-inner">
+            <p><i class="fas fa-heartbeat"></i> Created By Group_15 — RetinAI Clinical Screening Platform</p>
+            <p class="dash-footer-disclaimer">AI-assisted screening tool. Not a substitute for professional medical diagnosis.</p>
+        </div>
+    </footer>
+
+    <!-- Vendor JS -->
+    <script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/marked/marked.min.js"></script>
+
+    <script>
+        /* ===== PARTICLE CANVAS ===== */
+        (function initParticles() {
+            const canvas = document.getElementById('particle-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            const PARTICLE_COUNT = 45;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            class Particle {
+                constructor() { this.reset(); }
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.vx = (Math.random() - 0.5) * 0.25;
+                    this.vy = (Math.random() - 0.5) * 0.25;
+                    this.radius = Math.random() * 1.5 + 0.4;
+                    this.opacity = Math.random() * 0.25 + 0.03;
+                }
+                update() {
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                    if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+                }
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(0, 229, 176, ${this.opacity})`;
+                    ctx.fill();
+                }
+            }
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => { p.update(); p.draw(); });
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 100) {
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.strokeStyle = `rgba(0, 229, 176, ${0.03 * (1 - dist / 100)})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+                requestAnimationFrame(animate);
+            }
+            animate();
+        })();
+
+        /* ===== THEME TOGGLE ===== */
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', () => {
+                const html = document.documentElement;
+                const current = html.getAttribute('data-theme');
+                const next = current === 'dark' ? 'light' : 'dark';
+                html.setAttribute('data-theme', next);
+                themeIcon.className = next === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+                localStorage.setItem('retinai-theme', next);
+            });
+        }
+        (function () {
+            const saved = localStorage.getItem('retinai-theme');
+            if (saved) {
+                document.documentElement.setAttribute('data-theme', saved);
+                if (themeIcon) themeIcon.className = saved === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+        })();
+
+        /* ===== MOBILE NAV HAMBURGER ===== */
+        const hamburger = document.getElementById('nav-hamburger');
+        const mobileNav = document.getElementById('dash-mobile-nav');
+        const hamburgerIcon = document.getElementById('hamburger-icon');
+        if (hamburger && mobileNav) {
+            hamburger.addEventListener('click', () => {
+                const open = mobileNav.classList.toggle('open');
+                hamburgerIcon.className = open ? 'fas fa-times' : 'fas fa-bars';
+            });
+            // Close on outside click
+            document.addEventListener('click', (e) => {
+                if (!hamburger.contains(e.target) && !mobileNav.contains(e.target)) {
+                    mobileNav.classList.remove('open');
+                    hamburgerIcon.className = 'fas fa-bars';
+                }
+            });
+        }
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

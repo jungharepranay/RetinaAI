@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}RetinAI — Clinician Dashboard{% endblock %}
+{% block nav_clin_dash %}active{% endblock %}
+
+{% block content %}
+<div class="dash-page">
+    <!-- Welcome Banner -->
+    <div class="dash-welcome clin-welcome">
+        <div class="dash-welcome-text">
+            <h1><i class="fas fa-user-md"></i> Clinical Overview</h1>
+            <p>Welcome back, Dr. {{ user.name }} — System-wide case summary</p>
+        </div>
+        <a href="/clinician/cases" class="dash-welcome-cta clin-cta">
+            <i class="fas fa-folder-open"></i> View All Cases
+        </a>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="dash-stats-grid clin-stats">
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon stat-blue">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-value" data-count="{{ stats.total_patients }}">{{ stats.total_patients }}</span>
+                <span class="dash-stat-label">Total Patients</span>
+            </div>
+        </div>
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon stat-purple">
+                <i class="fas fa-folder-open"></i>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-value" data-count="{{ stats.total_cases }}">{{ stats.total_cases }}</span>
+                <span class="dash-stat-label">Total Cases</span>
+            </div>
+        </div>
+        <div class="dash-stat-card clin-stat-highlight">
+            <div class="dash-stat-icon stat-red">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-value" data-count="{{ stats.high_risk_cases }}">{{ stats.high_risk_cases }}</span>
+                <span class="dash-stat-label">High-Risk Cases</span>
+            </div>
+            {% if stats.high_risk_cases > 0 %}
+            <div class="clin-stat-alert-dot"></div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Risk Overview -->
+    {% if recent_cases %}
+    <div class="clin-risk-overview">
+        <div class="clin-risk-bar">
+            {% set urgent_count = recent_cases | selectattr('risk_priority', 'equalto', 'urgent') | list | length %}
+            {% set warning_count = recent_cases | selectattr('risk_priority', 'equalto', 'semi-urgent') | list | length %}
+            {% set normal_count = recent_cases | length - urgent_count - warning_count %}
+            {% if urgent_count > 0 %}
+            <div class="clin-risk-segment risk-seg-urgent" style="flex: {{ urgent_count }}" title="{{ urgent_count }} urgent">
+                <span>{{ urgent_count }}</span>
+            </div>
+            {% endif %}
+            {% if warning_count > 0 %}
+            <div class="clin-risk-segment risk-seg-warning" style="flex: {{ warning_count }}" title="{{ warning_count }} follow-up">
+                <span>{{ warning_count }}</span>
+            </div>
+            {% endif %}
+            {% if normal_count > 0 %}
+            <div class="clin-risk-segment risk-seg-normal" style="flex: {{ normal_count }}" title="{{ normal_count }} normal">
+                <span>{{ normal_count }}</span>
+            </div>
+            {% endif %}
+        </div>
+        <div class="clin-risk-legend">
+            <span class="clin-legend-item"><i class="fas fa-circle" style="color: var(--danger)"></i> Urgent</span>
+            <span class="clin-legend-item"><i class="fas fa-circle" style="color: var(--warning)"></i> Follow-up</span>
+            <span class="clin-legend-item"><i class="fas fa-circle" style="color: var(--success)"></i> Normal</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Cases (Quick Access) -->
+    <div class="dash-section">
+        <div class="dash-section-header">
+            <h2><i class="fas fa-clock"></i> Recent Cases</h2>
+            <a href="/clinician/cases" class="dash-section-link">View All <i class="fas fa-arrow-right"></i></a>
+        </div>
+
+        {% if recent_cases %}
+        <div class="clin-case-list">
+            {% for case in recent_cases %}
+            <a href="/clinician/case/{{ case.id }}" class="clin-case-item
+                {% if case.risk_priority == 'urgent' %}clin-case-urgent{% endif %}">
+                <div class="clin-case-risk
+                    {% if case.risk_priority == 'urgent' %}risk-urgent
+                    {% elif case.risk_priority == 'semi-urgent' %}risk-warning
+                    {% else %}risk-normal{% endif %}">
+                    <i class="fas fa-{% if case.risk_priority == 'urgent' %}exclamation-circle
+                        {% elif case.risk_priority == 'semi-urgent' %}exclamation-triangle
+                        {% else %}check-circle{% endif %}"></i>
+                </div>
+                <div class="clin-case-info">
+                    <span class="clin-case-name">{{ case.uploader_name or case.patient_name or 'Unknown' }}</span>
+                    <span class="clin-case-meta">{{ case.created_at }} · Case #{{ case.id }}</span>
+                </div>
+                <div class="clin-case-badge
+                    {% if case.risk_priority == 'urgent' %}badge-urgent
+                    {% elif case.risk_priority == 'semi-urgent' %}badge-warning
+                    {% else %}badge-normal{% endif %}">
+                    {{ case.risk_priority | capitalize }}
+                </div>
+                <div class="clin-case-arrow"><i class="fas fa-chevron-right"></i></div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="dash-empty-state">
+            <div class="dash-empty-icon">
+                <i class="fas fa-folder-open"></i>
+            </div>
+            <h3>No Cases Yet</h3>
+            <p>Patient scans will appear here once submitted through the screening tool.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

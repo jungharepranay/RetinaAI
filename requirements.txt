@@ -9,3 +9,11 @@ uvicorn
 python-multipart
 pillow
 jinja2
+torch
+timm
+albumentations
+bcrypt
+aiosqlite
+itsdangerous
+python-dotenv
+reportlab

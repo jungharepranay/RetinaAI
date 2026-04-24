@@ -1,0 +1,420 @@
+{% extends "base.html" %}
+{% block title %}RetinAI — Case #{{ scan.id }}{% endblock %}
+{% block nav_cases %}active{% endblock %}
+
+{% set pred = scan.prediction_output %}
+{% set assessment = pred.get('clinical_assessment', {}) if pred else {} %}
+{% set findings = assessment.get('key_findings', []) if assessment else [] %}
+{% set all_findings = assessment.get('all_findings', []) if assessment else [] %}
+{% set urgency = assessment.get('urgency', 'routine') if assessment else 'routine' %}
+{% set clinical_features = pred.get('clinical_features', {}) if pred else {} %}
+{% set clinical_flags = pred.get('clinical_flags', []) if pred else [] %}
+{% set gradcam_paths = pred.get('gradcam_paths', {}) if pred else {} %}
+{% set patient_context = pred.get('patient_context', {}) if pred else {} %}
+{% set confidence = pred.get('confidence', {}) if pred else {} %}
+
+{% block content %}
+<div class="dash-page">
+    <!-- Breadcrumb -->
+    <div class="dash-breadcrumb">
+        <a href="/clinician/cases"><i class="fas fa-arrow-left"></i> All Cases</a>
+        <span class="dash-breadcrumb-sep">/</span>
+        <span>Case #{{ scan.id }}</span>
+    </div>
+
+    <!-- Case Header -->
+    <div class="clin-case-header
+        {% if urgency == 'urgent' %}case-urgent
+        {% elif urgency == 'semi-urgent' %}case-warning
+        {% else %}case-normal{% endif %}">
+        <div class="clin-case-header-left">
+            <div class="clin-case-header-icon">
+                <i class="fas fa-{% if urgency == 'urgent' %}exclamation-circle
+                    {% elif urgency == 'semi-urgent' %}exclamation-triangle
+                    {% else %}check-circle{% endif %}"></i>
+            </div>
+            <div>
+                <h1>{{ scan.uploader_name or scan.patient_name or 'Unknown Patient' }}</h1>
+                <p>Case #{{ scan.id }} · {{ scan.created_at }} · 
+                    <span class="clin-urgency-label
+                        {% if urgency == 'urgent' %}urgency-urgent
+                        {% elif urgency == 'semi-urgent' %}urgency-warning
+                        {% else %}urgency-normal{% endif %}">
+                        {{ urgency | capitalize }}
+                    </span>
+                </p>
+            </div>
+        </div>
+        {% if assessment.get('patient_summary') %}
+        <div class="clin-patient-summary">
+            <i class="fas fa-user"></i> {{ assessment.patient_summary }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="clin-detail-tabs" id="clin-tabs">
+        <nav class="clin-tab-nav">
+            <button class="clin-tab-btn active" data-tab="tab-predictions" onclick="switchClinTab(this)">
+                <i class="fas fa-chart-bar"></i> Predictions
+            </button>
+            <button class="clin-tab-btn" data-tab="tab-features" onclick="switchClinTab(this)">
+                <i class="fas fa-vials"></i> Features
+            </button>
+            <button class="clin-tab-btn" data-tab="tab-heatmaps" onclick="switchClinTab(this)">
+                <i class="fas fa-fire"></i> Heatmaps
+            </button>
+            <button class="clin-tab-btn" data-tab="tab-reasoning" onclick="switchClinTab(this)">
+                <i class="fas fa-brain"></i> Reasoning
+            </button>
+            <button class="clin-tab-btn" data-tab="tab-notes" onclick="switchClinTab(this)">
+                <i class="fas fa-sticky-note"></i> Notes
+                {% if notes %}<span class="clin-tab-count">{{ notes | length }}</span>{% endif %}
+            </button>
+        </nav>
+
+        <!-- Predictions Tab -->
+        <div class="clin-tab-pane active" id="tab-predictions">
+            {% if all_findings %}
+            <div class="clin-pred-table">
+                {% for f in all_findings %}
+                <div class="clin-pred-row
+                    {% if f.risk_level == 'High Risk' %}pred-high
+                    {% elif f.risk_level == 'Borderline' %}pred-borderline
+                    {% else %}pred-low{% endif %}">
+                    <div class="clin-pred-disease">
+                        <span class="clin-pred-name">{{ f.disease }}</span>
+                        <span class="clin-pred-desc">{{ f.description or '' }}</span>
+                    </div>
+                    <div class="clin-pred-meta">
+                        <div class="clin-pred-bar-wrap">
+                            <div class="clin-pred-bar" style="width: {{ (f.probability * 100) | round(1) }}%"></div>
+                        </div>
+                        <span class="clin-pred-pct">{{ (f.probability * 100) | round(1) }}%</span>
+                        <span class="clin-pred-thresh">/ {{ (f.threshold * 100) | round(1) }}%</span>
+                        <span class="clin-pred-risk
+                            {% if f.risk_level == 'High Risk' %}risk-high
+                            {% elif f.risk_level == 'Borderline' %}risk-borderline
+                            {% else %}risk-low{% endif %}">
+                            {{ f.risk_level }}
+                        </span>
+                    </div>
+                    {% if f.supporting_evidence %}
+                    <div class="clin-pred-evidence">
+                        <i class="fas fa-check-circle"></i>
+                        {{ f.supporting_evidence | join('; ') }}
+                    </div>
+                    {% endif %}
+                    {% if f.contradicting_evidence %}
+                    <div class="clin-pred-caution">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {{ f.contradicting_evidence | join('; ') }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="clin-no-data"><i class="fas fa-info-circle"></i> No prediction data available.</p>
+            {% endif %}
+
+            <!-- Validation Flags -->
+            {% if clinical_flags %}
+            <div class="clin-flags-section">
+                <h3><i class="fas fa-flag"></i> Validation Flags</h3>
+                {% for flag in clinical_flags %}
+                <div class="clin-flag-item
+                    {% if flag.flag_type == 'supporting' %}flag-supporting
+                    {% elif flag.flag_type == 'contradicting' %}flag-contradicting
+                    {% else %}flag-info{% endif %}">
+                    <div class="clin-flag-icon">
+                        <i class="fas fa-{% if flag.flag_type == 'supporting' %}check-circle
+                            {% elif flag.flag_type == 'contradicting' %}exclamation-triangle
+                            {% else %}info-circle{% endif %}"></i>
+                    </div>
+                    <div class="clin-flag-body">
+                        <strong>{{ flag.disease or '' }}</strong>
+                        <span>{{ flag.evidence or '' }}</span>
+                        {% if flag.literature_ref %}
+                        <span class="clin-flag-ref"><i class="fas fa-book"></i> {{ flag.literature_ref }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Features Tab -->
+        <div class="clin-tab-pane" id="tab-features">
+            {% if clinical_features %}
+            <div class="clin-features-grid">
+                {% set feature_sections = [
+                    ('dr', 'Diabetic Retinopathy', 'fa-tint', [
+                        ('Exudates', 'exudate_count'), ('Hemorrhages', 'hemorrhage_count'),
+                        ('Microaneurysms', 'microaneurysm_count'), ('Lesion Area', 'lesion_area')
+                    ]),
+                    ('glaucoma', 'Glaucoma', 'fa-eye', [
+                        ('Cup/Disc Ratio', 'cdr')
+                    ]),
+                    ('myopia', 'Myopia', 'fa-search', [
+                        ('Brightness', 'brightness'), ('Texture Var.', 'texture_variance'),
+                        ('Vessel Vis.', 'vessel_visibility'), ('Edge Density', 'edge_density')
+                    ]),
+                    ('cataract', 'Cataract', 'fa-low-vision', [
+                        ('Blur Score', 'blur_score'), ('Contrast', 'contrast_ratio'),
+                        ('Haze Index', 'haze_index')
+                    ]),
+                    ('amd', 'AMD', 'fa-bullseye', [
+                        ('Drusen Count', 'drusen_count'), ('Macular Irreg.', 'macular_irregularity')
+                    ]),
+                    ('hypertension', 'Hypertension', 'fa-heartbeat', [
+                        ('AV Ratio', 'av_ratio'), ('Vessel Tortuosity', 'vessel_tortuosity')
+                    ])
+                ] %}
+                {% for sec_key, sec_title, sec_icon, sec_fields in feature_sections %}
+                {% set sec_data = clinical_features.get(sec_key, {}) %}
+                <div class="clin-feature-card">
+                    <div class="clin-feature-header">
+                        <i class="fas {{ sec_icon }}"></i>
+                        <h4>{{ sec_title }}</h4>
+                    </div>
+                    {% for label, key in sec_fields %}
+                    {% set val = sec_data.get(key) %}
+                    <div class="clin-feature-item">
+                        <span>{{ label }}</span>
+                        <span class="clin-feature-val">
+                            {% if val is none %}N/A
+                            {% elif val is number %}{{ "%.4f"|format(val) if val < 1 else "%.2f"|format(val) }}
+                            {% else %}{{ val }}{% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Patient Context -->
+            {% if patient_context %}
+            <div class="clin-context-section">
+                <h3><i class="fas fa-user-circle"></i> Patient Context</h3>
+                <div class="clin-context-grid">
+                    {% if patient_context.get('patient_summary') %}
+                    <div class="clin-context-item">
+                        <span class="clin-context-label">Summary</span>
+                        <span>{{ patient_context.patient_summary }}</span>
+                    </div>
+                    {% endif %}
+                    {% for rc in patient_context.get('risk_context', []) %}
+                    <div class="clin-context-item">
+                        <span class="clin-context-label">{{ rc.disease }}</span>
+                        <span>{{ rc.context_note }} ({{ rc.risk_modifier }})</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% else %}
+            <p class="clin-no-data"><i class="fas fa-info-circle"></i> No clinical features extracted.</p>
+            {% endif %}
+        </div>
+
+        <!-- Heatmaps Tab -->
+        <div class="clin-tab-pane" id="tab-heatmaps">
+            {% if gradcam_paths %}
+            <div class="clin-heatmap-grid">
+                {% for disease, url in gradcam_paths.items() %}
+                {% if url %}
+                <div class="clin-heatmap-item">
+                    <img src="{{ url }}" alt="Grad-CAM — {{ disease }}" loading="lazy" />
+                    <div class="clin-heatmap-label">{{ disease }}</div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <p class="clin-heatmap-note">
+                <i class="fas fa-info-circle"></i>
+                Highlighted regions show areas the model focused on during prediction.
+            </p>
+            {% else %}
+            <p class="clin-no-data"><i class="fas fa-info-circle"></i> No Grad-CAM heatmaps available.</p>
+            {% endif %}
+        </div>
+
+        <!-- Reasoning Tab (NEW) -->
+        <div class="clin-tab-pane" id="tab-reasoning">
+            {% if assessment.get('explanation') %}
+            <div class="clin-reasoning-structured" id="clin-reasoning-content">
+                <!-- Populated by JS: parsed LLM sections -->
+                <div class="clin-reasoning-loading">
+                    <i class="fas fa-brain"></i> Processing clinical reasoning...
+                </div>
+            </div>
+
+            <!-- Raw output toggle -->
+            <div class="clin-reasoning-raw-toggle">
+                <button class="dash-btn-outline" onclick="toggleRawReasoning()">
+                    <i class="fas fa-code"></i> Toggle Raw Output
+                </button>
+            </div>
+            <div class="clin-reasoning-raw hidden" id="clin-reasoning-raw">
+                <pre>{{ assessment.explanation }}</pre>
+            </div>
+            {% else %}
+            <p class="clin-no-data"><i class="fas fa-info-circle"></i> No clinical reasoning data available.</p>
+            {% endif %}
+        </div>
+
+        <!-- Notes Tab -->
+        <div class="clin-tab-pane" id="tab-notes">
+            <div id="notes-section">
+                <!-- Add Note Form -->
+                <div class="clin-note-form">
+                    <h3><i class="fas fa-plus-circle"></i> Add Clinical Note</h3>
+                    <form method="post" action="/clinician/case/{{ scan.id }}/note">
+                        <div class="clin-note-type-select">
+                            <label class="clin-note-type-option">
+                                <input type="radio" name="note_type" value="follow-up" checked />
+                                <span><i class="fas fa-calendar-check"></i> Follow-up Needed</span>
+                            </label>
+                            <label class="clin-note-type-option">
+                                <input type="radio" name="note_type" value="refer" />
+                                <span><i class="fas fa-user-md"></i> Refer to Specialist</span>
+                            </label>
+                            <label class="clin-note-type-option">
+                                <input type="radio" name="note_type" value="general" />
+                                <span><i class="fas fa-sticky-note"></i> General Note</span>
+                            </label>
+                        </div>
+                        <textarea name="note_text" rows="3" placeholder="Enter clinical note..." required></textarea>
+                        <button type="submit" class="dash-btn-primary">
+                            <i class="fas fa-save"></i> Save Note
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Existing Notes -->
+                {% if notes %}
+                <div class="clin-notes-list">
+                    <h3><i class="fas fa-list"></i> Previous Notes</h3>
+                    {% for note in notes %}
+                    <div class="clin-note-item">
+                        <div class="clin-note-header">
+                            <span class="clin-note-type-badge
+                                {% if note.note_type == 'follow-up' %}note-followup
+                                {% elif note.note_type == 'refer' %}note-refer
+                                {% else %}note-general{% endif %}">
+                                <i class="fas fa-{% if note.note_type == 'follow-up' %}calendar-check
+                                    {% elif note.note_type == 'refer' %}user-md
+                                    {% else %}sticky-note{% endif %}"></i>
+                                {{ note.note_type | replace('-', ' ') | capitalize }}
+                            </span>
+                            <span class="clin-note-meta">
+                                {{ note.clinician_name or 'Clinician' }} · {{ note.created_at }}
+                            </span>
+                        </div>
+                        <p class="clin-note-text">{{ note.note_text }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="clin-no-notes"><i class="fas fa-info-circle"></i> No notes added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function switchClinTab(btn) {
+        const tabId = btn.dataset.tab;
+        document.querySelectorAll('.clin-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.clin-tab-pane').forEach(p => p.classList.remove('active'));
+        const pane = document.getElementById(tabId);
+        if (pane) pane.classList.add('active');
+    }
+
+    function toggleRawReasoning() {
+        const raw = document.getElementById('clin-reasoning-raw');
+        raw.classList.toggle('hidden');
+    }
+
+    /* ===== Parse and render structured reasoning ===== */
+    (function() {
+        const explanation = {{ (assessment.get('explanation', '') | tojson) | safe }};
+        const container = document.getElementById('clin-reasoning-content');
+        if (!explanation || !container) return;
+
+        function renderMd(text) {
+            if (!text || !text.trim()) return '';
+            if (typeof marked !== 'undefined' && marked.parse) return marked.parse(text.trim());
+            const d = document.createElement('div');
+            d.textContent = text.trim();
+            return d.innerHTML.replace(/\n/g, '<br>');
+        }
+
+        // Parse sections
+        const sectionDefs = [
+            { key: 'summary',   title: 'Summary',             icon: 'fa-file-medical-alt', color: 'accent' },
+            { key: 'findings',  title: 'Key Findings',         icon: 'fa-search',           color: 'info' },
+            { key: 'context',   title: 'Clinical Context',     icon: 'fa-info-circle',      color: 'purple' },
+            { key: 'nextsteps', title: 'Recommendations',      icon: 'fa-clipboard-list',   color: 'success' },
+        ];
+
+        const patterns = {
+            summary:   [/summary/i],
+            findings:  [/key\s*findings/i, /findings/i],
+            context:   [/what\s*this\s*means/i, /why\s*this\s*matters/i, /context/i],
+            nextsteps: [/next\s*steps/i, /recommendations/i, /what\s*to\s*do/i],
+        };
+
+        const sections = { summary: '', findings: '', context: '', nextsteps: '' };
+        const lines = explanation.split('\n');
+        let current = 'summary';
+        let firstHeader = false;
+        let pre = [];
+
+        for (const line of lines) {
+            const t = line.trim();
+            if (!t) { if (firstHeader) sections[current] += '\n'; else pre.push(''); continue; }
+
+            let matched = false;
+            const clean = t.replace(/^[#*\s]+/, '').replace(/[*:]+$/, '').trim();
+            for (const [key, pats] of Object.entries(patterns)) {
+                for (const p of pats) {
+                    if (p.test(clean) && clean.length < 40) {
+                        current = key; matched = true; firstHeader = true; break;
+                    }
+                }
+                if (matched) break;
+            }
+            if (!matched) {
+                if (firstHeader) sections[current] += line + '\n';
+                else pre.push(line);
+            }
+        }
+        if (!firstHeader) sections.summary = explanation;
+        if (!sections.summary.trim() && pre.length) sections.summary = pre.join('\n');
+
+        // Render
+        let html = '';
+        for (const def of sectionDefs) {
+            const content = sections[def.key] ? sections[def.key].trim() : '';
+            if (!content) continue;
+            html += `
+            <div class="clin-reasoning-block reasoning-${def.color}">
+                <div class="clin-reasoning-block-header">
+                    <i class="fas ${def.icon}"></i>
+                    <h4>${def.title}</h4>
+                </div>
+                <div class="clin-reasoning-block-body">${renderMd(content)}</div>
+            </div>`;
+        }
+
+        container.innerHTML = html || '<p class="clin-no-data"><i class="fas fa-info-circle"></i> Could not parse structured reasoning.</p>';
+    })();
+</script>
+{% endblock %}
