@@ -38,7 +38,9 @@ from src.efficientnet_model import (
 
 # ─── Ensemble support ─── #
 try:
-    from src.ensemble_model import load_ensemble, predict_ensemble
+    from src.ensemble_model import (
+        load_ensemble, predict_ensemble, predict_ensemble_with_tta,
+    )
     HAS_ENSEMBLE_MODULE = True
 except ImportError:
     HAS_ENSEMBLE_MODULE = False
@@ -116,7 +118,8 @@ def predict_image(image_path: str, model=None, threshold: float = None,
     if use_ensemble and threshold is None:
         ensemble = _get_ensemble()
         if ensemble is not None:
-            return predict_ensemble(image_path, ensemble, DEVICE)
+            # Use TTA for better screening sensitivity (3-flip averaging)
+            return predict_ensemble_with_tta(image_path, ensemble, DEVICE)
 
     # Fallback to single model
     if model is None:
@@ -229,7 +232,10 @@ def predict_initial(image_path: str, model=None,
     # Single model is still needed for Grad-CAM (Step 8).
     ensemble = _get_ensemble()
     if ensemble is not None:
-        detected, probabilities = predict_ensemble(image_path, ensemble, DEVICE)
+        # Use TTA for clinical pipeline (3-flip for better sensitivity)
+        detected, probabilities = predict_ensemble_with_tta(
+            image_path, ensemble, DEVICE
+        )
         pred_flags = {name: (name in detected) for name in probabilities}
         # Use ensemble thresholds for downstream modules
         thresholds = {col: ensemble.thresholds.get(col, 0.5)

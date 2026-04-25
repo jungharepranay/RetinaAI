@@ -230,6 +230,32 @@ def load_ensemble(config_path: str, device: torch.device = DEVICE) -> EnsembleMo
     return ensemble
 
 
+# ────────────────────────── Post-Processing ────────────────────────── #
+
+def apply_normal_constraint(detected, probabilities):
+    """Enforce Normal ⊥ Disease mutual exclusivity.
+
+    Clinical logic: a fundus cannot be simultaneously Normal and diseased.
+    If any disease is detected, Normal is removed from the detected list.
+
+    ██  SAFETY  ██  Raw probabilities are NEVER modified. Only the
+    'detected' list is filtered. This is consistent with the system's
+    safety invariants documented in validation_rules.py.
+
+    Why this helps:
+    - Normal precision=0.44 means 56% of Normal predictions are wrong.
+    - Those false Normal flags are effectively missed diseases (FN).
+    - Removing contradictory Normal flags makes clinical output cleaner.
+    """
+    normal_name = "Normal"
+    diseases = [d for d in detected if d != normal_name]
+
+    if diseases and normal_name in detected:
+        detected = [d for d in detected if d != normal_name]
+
+    return detected
+
+
 # ────────────────────────── Prediction ────────────────────────── #
 
 @torch.no_grad()
@@ -290,6 +316,8 @@ def predict_ensemble(
         thresh = ensemble.thresholds.get(col, 0.5)
         if prob >= thresh:
             detected.append(name)
+    # Apply Normal constraint (mutual exclusivity)
+    detected = apply_normal_constraint(detected, probabilities)
 
     return detected, probabilities
 
@@ -335,6 +363,88 @@ def predict_ensemble_from_array(
         thresh = ensemble.thresholds.get(col, 0.5)
         if prob >= thresh:
             detected.append(name)
+    # Apply Normal constraint (mutual exclusivity)
+    detected = apply_normal_constraint(detected, probabilities)
+
+    return detected, probabilities
+
+
+@torch.no_grad()
+def predict_ensemble_with_tta(
+    image_path: str,
+    ensemble: EnsembleModel,
+    device: torch.device = DEVICE,
+) -> tuple:
+    """Ensemble prediction with 3-flip Test-Time Augmentation.
+
+    Averages predictions over 3 views: original, horizontal flip,
+    vertical flip. This smooths probability estimates and reduces
+    orientation-dependent prediction noise.
+
+    Why this helps:
+    - Fundus images have no canonical orientation. Flipped views may
+      reveal lesion patterns missed in the original orientation.
+    - Averaging reduces outlier predictions, making threshold decisions
+      more stable.
+    - FN effect: slight reduction (flipped views catch missed features).
+    - FP effect: slight reduction (averaging suppresses spurious peaks).
+
+    Cost: 3x inference time (~300ms -> ~900ms). Acceptable for screening.
+    """
+    tensor = preprocess_image(
+        image_path,
+        target_size=ensemble.img_size,
+        use_clahe=ensemble.use_clahe,
+    ).to(device)
+
+    # 3 views: original, horizontal flip, vertical flip
+    views = [
+        tensor,
+        torch.flip(tensor, dims=[3]),  # H-flip
+        torch.flip(tensor, dims=[2]),  # V-flip
+    ]
+
+    all_view_probs = []
+    for view in views:
+        # Get predictions from each model for this view
+        model_probs = []
+        for model in ensemble.models:
+            logits = model(view)
+            probs = torch.sigmoid(logits).cpu().numpy()[0]  # (8,)
+            model_probs.append(probs)
+
+        # Combine model predictions (same logic as predict_ensemble)
+        if ensemble.per_class_weights is not None:
+            combined = np.zeros(NUM_CLASSES)
+            for c, col in enumerate(DISEASE_COLUMNS):
+                col_weights = ensemble.per_class_weights.get(col, {})
+                for j, name in enumerate(ensemble.model_names):
+                    w = col_weights.get(name, 1.0 / len(ensemble.model_names))
+                    combined[c] += w * model_probs[j][c]
+        else:
+            combined = np.zeros(NUM_CLASSES)
+            for j, name in enumerate(ensemble.model_names):
+                w = ensemble.weights.get(name, 1.0 / len(ensemble.model_names))
+                combined += w * model_probs[j]
+
+        all_view_probs.append(combined)
+
+    # Average across TTA views
+    avg_probs = np.mean(all_view_probs, axis=0)
+
+    # Apply thresholds
+    probabilities = {}
+    detected = []
+    for i, col in enumerate(DISEASE_COLUMNS):
+        name = DISEASE_NAMES[col]
+        prob = float(round(avg_probs[i], 4))
+        probabilities[name] = prob
+        thresh = ensemble.thresholds.get(col, 0.5)
+        if prob >= thresh:
+            detected.append(name)
+
+    # Apply Normal constraint
+    detected = apply_normal_constraint(detected, probabilities)
 
     return detected, probabilities
 

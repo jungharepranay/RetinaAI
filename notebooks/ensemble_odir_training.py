@@ -493,6 +493,105 @@ class MultiLabelClassifier(nn.Module):
 
 print("✅ MultiLabelClassifier defined (supports any timm backbone).")
 
+# %% Cell 11b — Asymmetric Loss (ASL) for Multi-Label Classification
+# Reference: Ben-Baruch et al., "Asymmetric Loss For Multi-Label
+# Classification", ICCV 2021.
+#
+# WHY: BCE+pos_weight linearly up-weights positives but leaves easy
+# negatives untouched. For rare classes (H:41, G:79, A:64 samples),
+# the gradient is still dominated by negatives. ASL's gamma_neg=4
+# exponentially suppresses easy negatives, letting rare positive
+# patterns surface during training.
+#
+# EFFECT: ↓↓ FN (model learns rare positives), ↑ FP slight (~1-3%
+# on majority classes). Correct trade-off for clinical screening.
+
+class AsymmetricLoss(nn.Module):
+    """Asymmetric Loss for Multi-Label Classification.
+
+    Args:
+        gamma_neg: Focusing parameter for negative samples (higher = more suppression)
+        gamma_pos: Focusing parameter for positive samples
+        clip: Hard threshold for easy negatives (shifts probability toward 0.5)
+    """
+    def __init__(self, gamma_neg=4, gamma_pos=1, clip=0.05):
+        super().__init__()
+        self.gamma_neg = gamma_neg
+        self.gamma_pos = gamma_pos
+        self.clip = clip
+
+    def forward(self, logits, targets):
+        xs_pos = torch.sigmoid(logits)
+        xs_neg = 1.0 - xs_pos
+
+        # Asymmetric clipping: shift easy negatives toward 0.5
+        if self.clip is not None and self.clip > 0:
+            xs_neg = (xs_neg + self.clip).clamp(max=1.0)
+
+        # Standard BCE components
+        los_pos = targets * torch.log(xs_pos.clamp(min=1e-8))
+        los_neg = (1.0 - targets) * torch.log(xs_neg.clamp(min=1e-8))
+        loss = los_pos + los_neg
+
+        # Asymmetric focusing
+        if self.gamma_neg > 0 or self.gamma_pos > 0:
+            with torch.no_grad():
+                pt0 = xs_pos * targets
+                pt1 = xs_neg * (1.0 - targets)
+                pt = pt0 + pt1
+                one_sided_gamma = (self.gamma_pos * targets
+                                   + self.gamma_neg * (1.0 - targets))
+                one_sided_w = torch.pow(1.0 - pt, one_sided_gamma)
+            loss *= one_sided_w
+
+        return -loss.sum() / logits.size(0)
+
+print("✅ AsymmetricLoss defined (gamma_neg=4, gamma_pos=1, clip=0.05).")
+
+# %% Cell 11c — CutMix Augmentation for Multi-Label
+# WHY: Standard Mixup blends entire images, creating unrealistic fundus
+# images. CutMix pastes a rectangular patch from one image onto another,
+# preserving local anatomy. Labels are mixed proportionally to patch area.
+#
+# EFFECT: ↓ FN slight (increases training diversity for rare classes
+# without synthetic artifacts). Applied with p=0.3 to avoid excessive
+# augmentation.
+
+def cutmix_multilabel(images, labels, alpha=1.0, p=0.3):
+    """CutMix for multi-label: paste patch from one image, mix labels by area."""
+    if np.random.rand() > p:
+        return images, labels
+
+    B, C, H, W = images.shape
+    indices = torch.randperm(B, device=images.device)
+
+    lam = np.random.beta(alpha, alpha)
+
+    # Random box dimensions
+    cut_ratio = np.sqrt(1.0 - lam)
+    cut_h = int(H * cut_ratio)
+    cut_w = int(W * cut_ratio)
+    cy = np.random.randint(H)
+    cx = np.random.randint(W)
+    y1 = max(0, cy - cut_h // 2)
+    y2 = min(H, cy + cut_h // 2)
+    x1 = max(0, cx - cut_w // 2)
+    x2 = min(W, cx + cut_w // 2)
+
+    # Paste patch from shuffled images
+    images[:, :, y1:y2, x1:x2] = images[indices, :, y1:y2, x1:x2]
+
+    # Adjust lambda to actual patch area
+    lam = 1.0 - (y2 - y1) * (x2 - x1) / (H * W)
+
+    # Mix labels proportionally (union-like for multi-label)
+    mixed_labels = lam * labels + (1.0 - lam) * labels[indices]
+    mixed_labels = mixed_labels.clamp(0, 1)
+
+    return images, mixed_labels
+
+print("✅ CutMix augmentation defined (p=0.3).")
+
 # %% Cell 12 — Training + Validation Functions
 def safe_auc(y_true, y_pred):
     """Macro ROC-AUC, safely skipping classes with only one label value."""
@@ -537,10 +636,21 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device,
         images = images.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True).float()
 
+        # ── FIX: Save original BINARY labels for metrics BEFORE CutMix ──
+        # CutMix produces soft labels (e.g., 0.7, 0.3) which break
+        # roc_auc_score — it requires binary {0, 1} ground truth.
+        # Mixed labels are only valid for the loss function.
+        labels_original = labels.clone()
+
+        # CutMix augmentation (p=0.3 — applied on GPU for efficiency)
+        # Clone images to avoid in-place mutation of dataloader memory
+        images_aug = images.clone()
+        images_aug, labels_mixed = cutmix_multilabel(images_aug, labels.clone(), alpha=1.0, p=0.3)
+
         optimizer.zero_grad(set_to_none=True)
         with autocast(enabled=use_amp):
-            logits = model(images)
-            loss = criterion(logits, labels)
+            logits = model(images_aug)
+            loss = criterion(logits, labels_mixed)  # Loss uses MIXED labels
 
         if torch.isnan(loss) or torch.isinf(loss):
             optimizer.zero_grad(set_to_none=True)
@@ -556,7 +666,8 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler, device,
         valid_samples += images.size(0)
         probs = torch.sigmoid(logits).detach().cpu().numpy()
         all_preds.append(probs)
-        all_labels.append(labels.cpu().numpy())
+        # ── FIX: Use ORIGINAL binary labels for AUC, not mixed ──
+        all_labels.append(labels_original.cpu().numpy())
         pbar.set_postfix(loss=f"{loss.item():.4f}")
 
     epoch_loss = running_loss / max(valid_samples, 1)
@@ -778,7 +889,12 @@ print("=" * 70)
 print("🏋️  ENSEMBLE TRAINING — 3 Models on ODIR-5K")
 print("=" * 70)
 
-criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_tensor)
+# [IMPROVED] Asymmetric Loss replaces BCEWithLogitsLoss
+# ASL handles class imbalance internally via gamma_neg/gamma_pos focusing,
+# so pos_weight is no longer needed.
+criterion = AsymmetricLoss(gamma_neg=4, gamma_pos=1, clip=0.05)
+print("✅ Loss: AsymmetricLoss (gamma_neg=4, gamma_pos=1, clip=0.05)")
+print("   Replaces BCEWithLogitsLoss — better FN reduction for rare classes")
 
 all_results = {}
 all_val_preds = {}
@@ -908,33 +1024,44 @@ best_ensemble_preds = methods[best_method_name]['preds']
 best_ensemble_auc = methods[best_method_name]['auc']
 print(f"\n   ✅ Selected: {best_method_name} (AUC={best_ensemble_auc:.4f})")
 
-# %% Cell 16 — Per-Class Threshold Optimization (on Ensemble Predictions)
+# %% Cell 16 — Per-Class Threshold Optimization (F2 — Recall-Focused)
+# [IMPROVED] F2 score weights recall 4× more than precision (beta=2).
+# Clinical rationale: in screening, missing a disease (FN) is far worse
+# than a false alarm (FP). F2 selects lower thresholds that catch more
+# true positives at the cost of some false positives.
+#
+# Example: Glaucoma F1-optimal threshold=0.835 → recall=0.52 (bad).
+# F2-optimal threshold ≈ 0.45-0.55 → recall ≈ 0.72-0.80 (much better).
+from sklearn.metrics import fbeta_score
+
 print("=" * 70)
-print("🎯 Ensemble Threshold Optimization (maximizing F1 per class)")
+print("🎯 Ensemble Threshold Optimization (F2 — recall-focused)")
 print("=" * 70)
 
 optimal_thresholds = {}
-print(f"\n   {'Class':>6s} | {'OptThresh':>9s} | {'F1@0.5':>7s} | {'F1@Opt':>7s} | {'Δ':>7s}")
-print("   " + "-" * 55)
+print(f"\n   {'Class':>6s} | {'Thresh':>6s} | {'F2':>7s} | "
+      f"{'Recall':>7s} | {'Prec':>7s} | {'F1':>7s}")
+print("   " + "-" * 60)
 
 for i, col in enumerate(cfg.DISEASE_COLUMNS):
-    best_f1 = 0.0
+    best_f2 = 0.0
     best_thresh = 0.5
 
-    for thresh in np.arange(0.05, 0.95, 0.005):  # Finer search for ensemble
+    for thresh in np.arange(0.05, 0.95, 0.005):
         preds_binary = (best_ensemble_preds[:, i] >= thresh).astype(int)
-        f1 = f1_score(y_true[:, i], preds_binary, zero_division=0)
-        if f1 > best_f1:
-            best_f1 = f1
+        f2 = fbeta_score(y_true[:, i], preds_binary, beta=2,
+                         zero_division=0)
+        if f2 > best_f2:
+            best_f2 = f2
             best_thresh = thresh
 
-    f1_default = f1_score(y_true[:, i],
-                          (best_ensemble_preds[:, i] >= 0.5).astype(int),
-                          zero_division=0)
+    preds_opt = (best_ensemble_preds[:, i] >= best_thresh).astype(int)
+    rec_opt = recall_score(y_true[:, i], preds_opt, zero_division=0)
+    prec_opt = precision_score(y_true[:, i], preds_opt, zero_division=0)
+    f1_opt = f1_score(y_true[:, i], preds_opt, zero_division=0)
     optimal_thresholds[col] = round(float(best_thresh), 3)
-    delta = best_f1 - f1_default
-    print(f"   {col:>6s} | {best_thresh:>9.3f} | {f1_default:>7.4f} | {best_f1:>7.4f} | "
-          f"{'+' if delta >= 0 else ''}{delta:>6.4f}")
+    print(f"   {col:>6s} | {best_thresh:>6.3f} | {best_f2:>7.4f} | "
+          f"{rec_opt:>7.4f} | {prec_opt:>7.4f} | {f1_opt:>7.4f}")
 
 # Save thresholds
 thresh_path = os.path.join(cfg.REPORTS_DIR, "ensemble_optimal_thresholds.json")
